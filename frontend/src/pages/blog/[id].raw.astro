@@ -1,0 +1,20 @@
+---
+// src/pages/blog/[id].raw.astro
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import RawContent from "../../components/RawContent.astro";
+
+// Set to server-side rendering instead of static generation
+export const prerender = false;
+
+const { id } = Astro.params;
+const response = await fetch(`http://localhost:8000/api/blogs/${id}`);
+const blog = await response.json();
+---
+
+<BaseLayout>
+  <h1>{blog.title} (Raw Content)</h1>
+  <RawContent content={blog.content} />
+  <p>
+    <a href={`/blog/${id}`}>Back to Rendered View</a>
+  </p>
+</BaseLayout>

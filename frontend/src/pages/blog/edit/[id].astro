@@ -1,0 +1,118 @@
+---
+// src/pages/blog/edit/[id].astro
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import Editor from "../../../components/Editor.astro";
+import TagInput from "../../../components/TagInput.astro";
+
+// Set to server-side rendering
+export const prerender = false;
+
+const { id } = Astro.params;
+const response = await fetch(`http://localhost:8000/api/blogs/${id}`);
+const blog = await response.json();
+---
+
+<BaseLayout>
+  <h1 class="page-title">Edit Blog Post</h1>
+  <form id="edit-form">
+    <input type="hidden" id="blog-id" value={id} />
+    
+    <label for="title">Title:</label>
+    <input type="text" id="title" name="title" value={blog.title} required />
+
+    <label for="content">Content:</label>
+    <!-- Editor component renders the EasyMDE textarea -->
+    <Editor initialContent={blog.content} />
+
+    <label for="tags">Tags (comma-separated):</label>
+    <!-- TagInput component for handling tags -->
+    <TagInput initialTags={blog.tags.join(",")} />
+
+    <div class="button-group">
+      <button type="submit" class="btn btn-success">Update Post</button>
+      <a href={`/blog/${id}`} class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+
+  <!-- Client-side script for handling form submission -->
+  <script is:inline>
+    document
+      .getElementById("edit-form")
+      .addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const blogId = document.getElementById("blog-id").value;
+        const title = document.getElementById("title").value;
+        
+        // Get content from EasyMDE instance
+        let content = "";
+        try {
+          // Try all possible ways to access the editor instance
+          if (window.editorInstances && window.editorInstances.get('main')) {
+            content = window.editorInstances.get('main').value();
+            console.log("Got content from editorInstances.get('main')");
+          } else if (window.easyMDE) {
+            content = window.easyMDE.value();
+            console.log("Got content from window.easyMDE");
+          } else {
+            console.warn("EasyMDE instance not found, using empty content");
+          }
+        } catch (error) {
+          console.error("Error retrieving content from editor:", error);
+        }
+          
+        // Get tags from a hidden field maintained by TagInput
+        const tagsInput = document.getElementById("tag-input");
+        const tags = tagsInput
+          ? tagsInput
+              .getAttribute("data-tags")
+              ?.split(",")
+              .filter((tag) => tag.trim() !== "")
+          : [];
+
+        const payload = { title, content, tags };
+        
+        try {
+          const res = await fetch(`http://localhost:8000/api/blogs/${blogId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          
+          if (res.ok) {
+            window.location.href = `/blog/${blogId}`;
+          } else {
+            const error = await res.json();
+            alert(`Error updating blog post: ${error.error || "Unknown error"}`);
+          }
+        } catch (error) {
+          alert(`Network error: ${error.message}`);
+        }
+      });
+  </script>
+
+  <style>
+    form {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .button-group {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1rem;
+    }
+  </style>
+</BaseLayout>

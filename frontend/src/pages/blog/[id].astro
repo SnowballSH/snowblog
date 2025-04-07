@@ -1,0 +1,48 @@
+---
+// src/pages/blog/[id].astro
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogPost from "../../components/BlogPost.astro";
+
+// Set to server-side rendering instead of static generation
+export const prerender = false;
+
+const { id } = Astro.params;
+const response = await fetch(`http://localhost:8000/api/blogs/${id}`);
+const blog = await response.json();
+---
+
+<BaseLayout>
+  <div class="blog-container" style="background-color: white !important;">
+    <BlogPost {blog} />
+    <div class="raw-content-link">
+      <a href={`/blog/${id}.raw`} class="btn btn-secondary">
+        <i class="fas fa-code"></i> View Raw Content
+      </a>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .blog-container {
+    background-color: #ffffff !important;
+    padding: 1rem;
+    position: relative;
+    z-index: 1;
+  }
+  
+  :global(body), :global(main) {
+    background-color: #ffffff !important;
+  }
+  
+  .raw-content-link {
+    max-width: 800px;
+    margin: 1.5rem auto;
+    text-align: right;
+  }
+  
+  @media (max-width: 768px) {
+    .raw-content-link {
+      padding: 0 1rem;
+    }
+  }
+</style>

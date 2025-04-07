@@ -1,0 +1,98 @@
+---
+// src/pages/create.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Editor from "../components/Editor.astro";
+import TagInput from "../components/TagInput.astro";
+---
+
+<BaseLayout>
+  <h1 class="page-title">Create a New Blog Post</h1>
+  <form id="blog-form">
+    <label for="title">Title:</label>
+    <input type="text" id="title" name="title" required />
+
+    <label for="content">Content:</label>
+    <!-- Editor component renders the EasyMDE textarea -->
+    <Editor />
+
+    <label for="tags">Tags (comma-separated):</label>
+    <!-- TagInput component for handling tags -->
+    <TagInput />
+
+    <div class="button-group">
+      <button type="submit" class="btn btn-success">Create Post</button>
+      <a href="/" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+
+  <!-- Client-side script for handling form submission -->
+  <script is:inline>
+    document
+      .getElementById("blog-form")
+      .addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const title = document.getElementById("title").value;
+        // Get content from EasyMDE instance
+        let content = "";
+        try {
+          // Try all possible ways to access the editor instance
+          if (window.editorInstances && window.editorInstances.get('main')) {
+            content = window.editorInstances.get('main').value();
+            console.log("Got content from editorInstances.get('main')");
+          } else if (window.easyMDE) {
+            content = window.easyMDE.value();
+            console.log("Got content from window.easyMDE");
+          } else {
+            console.warn("EasyMDE instance not found, using empty content");
+          }
+        } catch (error) {
+          console.error("Error retrieving content from editor:", error);
+        }
+        // Get tags from a hidden field maintained by TagInput (data-tags attribute)
+        const tagsInput = document.getElementById("tag-input");
+        const tags = tagsInput
+          ? tagsInput
+              .getAttribute("data-tags")
+              ?.split(",")
+              .filter((tag) => tag.trim() !== "")
+          : [];
+
+        const payload = { title, content, tags };
+        const res = await fetch("http://localhost:8000/api/blogs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          window.location.href = "/";
+        } else {
+          alert("Error creating blog post");
+        }
+      });
+  </script>
+  <style>
+    form {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .button-group {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1rem;
+    }
+  </style>
+</BaseLayout>

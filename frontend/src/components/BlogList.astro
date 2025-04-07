@@ -1,0 +1,186 @@
+---
+// src/components/BlogList.astro
+import { marked } from "marked";
+
+interface Blog {
+  id: string;
+  title: string;
+  content?: string;
+  excerpt?: string; // API returns excerpt field instead of content for list
+  createdAt: string;
+  tags: string[];
+}
+
+interface Props {
+  blogs: Blog[];
+}
+
+const { blogs } = Astro.props as Props;
+
+// Process each blog to add HTML excerpts
+const processedBlogs = blogs.map((blog) => {
+  // Use the excerpt field if available, otherwise try content, or fallback to message
+  const contentToRender =
+    blog.excerpt || (blog.content ? blog.content.substring(0, 300) : null);
+
+  return {
+    ...blog,
+    htmlExcerpt: contentToRender
+      ? marked(contentToRender)
+      : marked("No content available"),
+  };
+});
+---
+
+<ul class="blog-list">
+  {
+    processedBlogs.map((blog) => (
+      <li class="blog-item">
+        <h2>
+          <a href={`/blog/${blog.id}`}>{blog.title}</a>
+        </h2>
+        <div class="blog-excerpt" set:html={blog.htmlExcerpt} />
+        <p class="blog-meta">
+          <span class="blog-date">
+            {blog.createdAt
+              ? new Date(blog.createdAt).toLocaleDateString()
+              : "No date"}
+          </span>
+          {blog.tags && blog.tags.length > 0 && (
+            <span class="blog-tags">
+              <strong>Tags:</strong> {blog.tags.join(", ")}
+            </span>
+          )}
+        </p>
+        <div class="blog-actions">
+          <a href={`/blog/${blog.id}`} class="btn btn-primary">Read more</a>
+          <a href={`/blog/${blog.id}.raw`} class="btn btn-secondary">View Raw</a>
+          <a href={`/blog/edit/${blog.id}`} class="btn btn-info">Edit</a>
+          <button class="btn btn-danger" data-blog-id={blog.id}>Delete</button>
+        </div>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .blog-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .blog-item {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .blog-item h2 {
+    margin-top: 0;
+  }
+  
+  .blog-item h2 a {
+    color: var(--text-color);
+    text-decoration: none;
+  }
+  
+  .blog-item h2 a:hover {
+    color: var(--primary-color);
+  }
+
+  .blog-excerpt {
+    color: var(--text-color);
+  }
+  
+  .blog-excerpt :global(pre),
+  .blog-excerpt :global(code) {
+    background: #f4f4f4;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+  
+  .blog-excerpt :global(p), 
+  .blog-excerpt :global(div), 
+  .blog-excerpt :global(span) {
+    color: var(--text-color);
+  }
+
+  .blog-meta {
+    font-size: 0.9em;
+    color: #666;
+    margin: 0.5rem 0;
+  }
+
+  .blog-tags {
+    margin-left: 1rem;
+  }
+
+  .blog-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+</style>
+
+<script>
+  // Add click handlers to all delete buttons
+  document.querySelectorAll('.btn-danger').forEach(button => {
+    button.addEventListener('click', async function() {
+      const blogId = this.getAttribute('data-blog-id');
+      if (!blogId) return;
+      
+      // Show confirmation dialog
+      if (confirm('Are you sure you want to delete this blog post? This action cannot be undone.')) {
+        try {
+          console.log(`Attempting to delete blog with ID: ${blogId}`);
+          const response = await fetch(`http://localhost:8000/api/blogs/${blogId}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            // Fetch API requires credentials: 'same-origin' for cookies/sessions
+            credentials: 'same-origin',
+          });
+          console.log('Delete response status:', response.status);
+          
+          if (response.ok) {
+            // Remove the blog item from the DOM
+            const blogItem = this.closest('.blog-item');
+            if (blogItem) {
+              blogItem.style.opacity = '0';
+              setTimeout(() => {
+                blogItem.remove();
+                
+                // If no blogs left, show message
+                if (document.querySelectorAll('.blog-item').length === 0) {
+                  const blogList = document.querySelector('.blog-list');
+                  if (blogList) {
+                    blogList.innerHTML = '<li class="no-blogs">No blog posts available. <a href="/create">Create one?</a></li>';
+                  }
+                }
+              }, 300);
+            }
+          } else {
+            // Try to parse error as JSON first
+            let errorMessage;
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || JSON.stringify(errorData);
+            } catch (e) {
+              // If not JSON, get as text
+              errorMessage = await response.text();
+            }
+            console.error(`Delete failed with status ${response.status}: ${errorMessage}`);
+            alert(`Failed to delete: ${errorMessage} (Status: ${response.status})`);
+          }
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      }
+    });
+  });
+</script>

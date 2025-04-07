@@ -1,0 +1,182 @@
+---
+// src/components/Editor.astro
+interface Props {
+  initialContent?: string;
+}
+
+const { initialContent = "" } = Astro.props as Props;
+---
+
+<div class="easymde-container">
+  <textarea id="editor-textarea">{initialContent}</textarea>
+  <div class="latex-help">
+    <p><i class="fa fa-lightbulb"></i> <strong>LaTeX Support:</strong> Use $...$ for inline math and $$...$$ for block math equations.</p>
+    <details>
+      <summary>Examples</summary>
+      <p>Inline math: Use single dollar signs for inline equations</p>
+      <p>Block math: Use double dollar signs for block equations</p>
+    </details>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Check if EasyMDE is available globally
+    if (typeof window.EasyMDE === 'function') {
+      initializeEditor();
+    } else {
+      // Give it a little time to load
+      setTimeout(function() {
+        if (typeof window.EasyMDE === 'function') {
+          initializeEditor();
+        } else {
+          showError();
+        }
+      }, 500);
+    }
+  });
+  
+  function initializeEditor() {
+    try {
+      const editorElement = document.getElementById("editor-textarea");
+      if (!editorElement) {
+        return;
+      }
+
+      // Add custom LaTeX buttons
+      const inlineLatexButton = {
+        name: "inline-latex",
+        action: function(editor) {
+          const cm = editor.codemirror;
+          const selectedText = cm.getSelection() || "LaTeX expression";
+          cm.replaceSelection("$" + selectedText + "$");
+        },
+        className: "fa fa-superscript",
+        title: "Inline LaTeX ($...$)",
+      };
+      
+      const blockLatexButton = {
+        name: "block-latex",
+        action: function(editor) {
+          const cm = editor.codemirror;
+          const selectedText = cm.getSelection() || "LaTeX expression";
+          cm.replaceSelection("\n$$\n" + selectedText + "\n$$\n");
+        },
+        className: "fa fa-square-root-alt",
+        title: "Block LaTeX ($$...$$)",
+      };
+      
+      const easyMDE = new window.EasyMDE({
+        element: editorElement,
+        initialValue: document.getElementById("editor-textarea").value,
+        toolbar: [
+          'bold', 'italic', 'heading', '|', 
+          'quote', 'unordered-list', 'ordered-list', '|',
+          'link', 'image', '|',
+          inlineLatexButton, blockLatexButton, '|',
+          'preview', 'side-by-side', 'fullscreen'
+        ],
+        spellChecker: false,
+        previewRender: function(plainText) {
+          // Convert markdown to HTML
+          let html = window.marked ? window.marked(plainText) : plainText;
+          
+          // Render LaTeX if available
+          if (typeof window.renderLatex === 'function') {
+            html = window.renderLatex(html);
+          }
+          
+          return html;
+        },
+      });
+      
+      // Store the instance
+      window.editorInstances = window.editorInstances || new Map();
+      window.editorInstances.set("main", easyMDE);
+      window.easyMDE = easyMDE; // For backwards compatibility
+    } catch (error) {
+      console.error("Error initializing editor:", error);
+      showError();
+    }
+  }
+  
+  function showError() {
+    const container = document.querySelector(".easymde-container");
+    if (container) {
+      container.innerHTML = '<div class="error">Editor failed to load. Please refresh the page or try again later.</div>';
+    }
+  }
+</script>
+
+<style is:global>
+  .easymde-container {
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .latex-help {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background-color: rgba(74, 137, 220, 0.05);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9rem;
+  }
+  
+  .latex-help p {
+    margin: 0.5rem 0;
+  }
+  
+  .latex-help code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+  
+  .latex-help details {
+    margin-top: 0.5rem;
+  }
+  
+  .latex-help summary {
+    cursor: pointer;
+    color: var(--primary-color);
+    font-weight: 500;
+  }
+
+  .error {
+    color: red;
+    padding: 1rem;
+    border: 1px solid red;
+  }
+
+  /* Fix for EasyMDE toolbar icons */
+  .editor-toolbar button {
+    color: #333 !important;
+  }
+
+  .editor-toolbar button.active,
+  .editor-toolbar button:hover {
+    background: #f0f0f0 !important;
+    border-color: #ddd !important;
+  }
+  
+  /* LaTeX styling in the editor */
+  .editor-preview .katex, 
+  .editor-preview-side .katex {
+    font-size: 1.1em;
+  }
+  
+  /* Custom icons for LaTeX buttons */
+  .editor-toolbar .fa-square-root-alt:before {
+    content: "√";
+    font-weight: bold;
+    font-family: 'Times New Roman', serif;
+  }
+  
+  /* Highlight LaTeX blocks */
+  .CodeMirror-code .cm-comment:not(.cm-formatting) {
+    background-color: rgba(74, 137, 220, 0.05);
+    border-radius: 3px;
+  }
+</style>

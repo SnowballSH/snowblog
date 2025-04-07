@@ -1,0 +1,13 @@
+---
+// src/components/RawContent.astro
+interface Props {
+  content: string | undefined;
+}
+
+const { content } = Astro.props as Props;
+---
+
+<pre
+  style="background-color: #f4f4f4; padding: 1rem; overflow-x: auto;">
+  {content || "No content available"}
+</pre>

@@ -9,6 +9,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.6.1"
+    "@astrojs/ts-plugin": "^1.10.4",
+    "astro": "^5.6.1",
+    "easymde": "^2.20.0",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.21",
+    "marked": "^15.0.7"
   }
 }

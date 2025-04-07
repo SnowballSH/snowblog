@@ -84,4 +84,85 @@ router.post("/api/blogs", async (ctx) => {
     }
 });
 
+// PUT /api/blogs/:id - Update an existing blog post
+router.put("/api/blogs/:id", async (ctx) => {
+    try {
+        const id = ctx.params.id;
+        if (!id) {
+            ctx.response.status = 400;
+            ctx.response.body = { error: "Blog ID is required" };
+            return;
+        }
+
+        if (!ctx.request.hasBody) {
+            ctx.response.status = 400;
+            ctx.response.body = { error: "Request body is missing" };
+            return;
+        }
+
+        // Parse the request body
+        const body = await ctx.request.body;
+        let blogInput: Partial<BlogInput>;
+
+        if (body.type() === "json") {
+            blogInput = await body.json();
+        } else {
+            ctx.response.status = 400;
+            ctx.response.body = { error: "Content-Type must be application/json" };
+            return;
+        }
+
+        // Update the blog post
+        const success = BlogModel.update(id, blogInput);
+
+        if (!success) {
+            ctx.response.status = 404;
+            ctx.response.body = { error: "Blog not found" };
+            return;
+        }
+
+        // Return the updated blog
+        const blog = BlogModel.getById(id);
+        ctx.response.body = blog;
+    } catch (error) {
+        console.error(`Error in PUT /api/blogs/${ctx.params.id}:`, error);
+        ctx.response.status = 500;
+        ctx.response.body = { error: error instanceof Error ? error.message : "Unknown error occurred" };
+    }
+});
+
+// DELETE /api/blogs/:id - Delete a blog post
+router.delete("/api/blogs/:id", async (ctx) => {
+    try {
+        console.log(`DELETE request for blog ID: ${ctx.params.id}`);
+        const id = ctx.params.id;
+        if (!id) {
+            ctx.response.status = 400;
+            ctx.response.body = { error: "Blog ID is required" };
+            return;
+        }
+
+        // Delete the blog post
+        const success = BlogModel.delete(id);
+        console.log(`Delete operation success: ${success}`);
+
+        if (!success) {
+            ctx.response.status = 404;
+            ctx.response.body = { error: "Blog not found" };
+            return;
+        }
+
+        // Send a successful response with a body instead of 204 No Content
+        ctx.response.status = 200; 
+        ctx.response.body = { 
+            success: true,
+            message: "Blog deleted successfully" 
+        };
+    } catch (error) {
+        console.error(`Error in DELETE /api/blogs/${ctx.params.id}:`, error);
+        ctx.response.status = 500;
+        ctx.response.body = { error: error instanceof Error ? error.message : "Unknown error occurred" };
+    }
+});
+
 export const blogsRouter = router;

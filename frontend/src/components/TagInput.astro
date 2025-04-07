@@ -1,0 +1,122 @@
+---
+// src/components/TagInput.astro
+interface Props {
+  initialTags?: string;
+}
+
+const { initialTags = "" } = Astro.props as Props;
+---
+
+<div id="tag-input-container">
+  <input
+    type="text"
+    id="tag-input-field"
+    placeholder="Add a tag and press Enter or comma"
+  />
+  <div id="tag-display"></div>
+</div>
+<!-- Hidden element to store the current tags -->
+<div id="tag-input" data-tags={initialTags} style="display: none;"></div>
+
+<script define:vars={{ initialTags }}>
+  const tagInputField = document.getElementById("tag-input-field");
+  const tagDisplay = document.getElementById("tag-display");
+  const tagStorage = document.getElementById("tag-input");
+  
+  // Initialize tags from initialTags prop
+  let tags = initialTags ? initialTags.split(",").filter(tag => tag.trim() !== "") : [];
+
+  function updateTagDisplay() {
+    tagDisplay.innerHTML = "";
+    tags.forEach((tag) => {
+      const tagElement = document.createElement("span");
+      tagElement.className = "tag";
+      
+      const tagText = document.createElement("span");
+      tagText.textContent = tag;
+      tagElement.appendChild(tagText);
+      
+      const removeButton = document.createElement("button");
+      removeButton.className = "remove-tag";
+      removeButton.textContent = "×";
+      removeButton.setAttribute("aria-label", `Remove tag ${tag}`);
+      removeButton.addEventListener("click", () => {
+        tags = tags.filter(t => t !== tag);
+        updateTagDisplay();
+      });
+      
+      tagElement.appendChild(removeButton);
+      tagDisplay.appendChild(tagElement);
+    });
+    
+    tagStorage.setAttribute("data-tags", tags.join(","));
+  }
+
+  // Initial display
+  updateTagDisplay();
+
+  tagInputField.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const value = tagInputField.value.trim();
+      if (value !== "") {
+        // Check for duplicates
+        if (!tags.includes(value)) {
+          tags.push(value);
+          tagInputField.value = "";
+          updateTagDisplay();
+        } else {
+          // Provide feedback for duplicates
+          tagInputField.value = "";
+          tagInputField.placeholder = "Tag already exists!";
+          setTimeout(() => {
+            tagInputField.placeholder = "Add a tag and press Enter or comma";
+          }, 1500);
+        }
+      }
+    }
+  });
+</script>
+
+<style>
+  #tag-input-container {
+    margin-bottom: 1rem;
+  }
+  
+  #tag-input-field {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  #tag-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    background-color: #e9ecef;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.875rem;
+  }
+  
+  .remove-tag {
+    background: none;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0 0 0 0.25rem;
+    margin-left: 0.25rem;
+  }
+  
+  .remove-tag:hover {
+    color: #dc3545;
+  }
+</style>
