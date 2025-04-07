@@ -4,3 +4,5 @@ SnowBlog is a work-in-progress personal blog full-stack web application for Snow
 
 - Vibe-coded with Claude Code and o3-mini
 - Supports LaTeX and Markdown
+- Frontend powered by Astro
+- Backend powered by Deno
