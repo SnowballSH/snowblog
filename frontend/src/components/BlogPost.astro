@@ -19,32 +19,49 @@ interface Props {
 
 const { blog } = Astro.props as Props;
 
+// Simple function to render LaTeX in HTML content
 async function renderContent(markdown: string | undefined) {
   if (!markdown) {
     return "<p>No content available</p>";
   }
 
+  // First convert markdown to HTML
   let html = await marked(markdown);
-
-  // Render LaTeX blocks wrapped in $$...$$
-  html = html.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
-    try {
-      return katex.renderToString(expr, { displayMode: true });
-    } catch (error) {
-      return `<pre>${expr}</pre>`;
-    }
-  });
-
-  // Render inline LaTeX wrapped in $...$
-  html = html.replace(/\$(.*?)\$/gs, (_, expr) => {
-    try {
-      return katex.renderToString(expr, { displayMode: false });
-    } catch (error) {
-      return `<pre>${expr}</pre>`;
-    }
-  });
-
-  return html;
+  
+  try {
+    // Render LaTeX blocks wrapped in $$...$$
+    html = html.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
+      try {
+        return katex.renderToString(expr.trim(), { 
+          displayMode: true,
+          strict: false,
+          trust: true
+        });
+      } catch (error) {
+        console.error("KaTeX block error:", error);
+        return `<pre>${expr}</pre>`;
+      }
+    });
+    
+    // Render inline LaTeX wrapped in $...$
+    html = html.replace(/\$(.*?)\$/gs, (_, expr) => {
+      try {
+        return katex.renderToString(expr.trim(), { 
+          displayMode: false,
+          strict: false,
+          trust: true
+        });
+      } catch (error) {
+        console.error("KaTeX inline error:", error);
+        return `<pre>${expr}</pre>`;
+      }
+    });
+    
+    return html;
+  } catch (error) {
+    console.error("LaTeX rendering error:", error);
+    return html;
+  }
 }
 
 const renderedContent = await renderContent(blog.content);
@@ -108,19 +125,17 @@ const renderedContent = await renderContent(blog.content);
   article {
     max-width: 800px;
     margin: 1rem auto;
-    background-color: #ffffff !important;
+    background-color: var(--background-color);
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     padding: 2rem;
-    position: relative;
-    z-index: 1;
   }
   
   header {
     margin-bottom: 2rem;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 1.5rem;
-    background-color: #ffffff !important; /* Force white background */
+    background-color: #ffffff !important;
   }
   
   header h1 {
@@ -150,14 +165,15 @@ const renderedContent = await renderContent(blog.content);
     font-size: 1.05rem;
   }
   
-  .content :global(p), 
+  .content :global(p) {
+    color: var(--text-color);
+    margin-bottom: 1rem;
+  }
+  
   .content :global(div), 
   .content :global(span),
-  .content :global(li),
-  .content :global(ul),
-  .content :global(ol) {
+  .content :global(li) {
     color: var(--text-color);
-    margin-bottom: 1.2rem;
   }
   
   .content :global(h1) {
@@ -187,10 +203,6 @@ const renderedContent = await renderContent(blog.content);
   .content :global(ul), .content :global(ol) {
     padding-left: 1.5rem;
     margin-bottom: 1.5rem;
-  }
-  
-  .content :global(li) {
-    margin-bottom: 0.5rem;
   }
   
   .content :global(a) {
@@ -225,6 +237,21 @@ const renderedContent = await renderContent(blog.content);
     border: none;
     padding: 0;
     background: none;
+  }
+  
+  /* LaTeX styling - copied from BlogList */
+  .content :global(.katex) {
+    font-size: 1.05em;
+  }
+  
+  .content :global(.katex-display) {
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  
+  .content :global(.katex-html) {
+    overflow-x: auto;
+    overflow-y: hidden;
   }
   
   .content :global(img) {

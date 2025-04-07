@@ -17,19 +17,69 @@ interface Props {
 
 const { blogs } = Astro.props as Props;
 
-// Process each blog to add HTML excerpts
-const processedBlogs = blogs.map((blog) => {
+// Import KaTeX for LaTeX rendering
+import katex from "katex";
+import "katex/dist/katex.min.css";
+
+// Simple function to render LaTeX in HTML content
+async function renderLatex(html) {
+  if (!html) return html;
+  
+  try {
+    // Render LaTeX blocks wrapped in $$...$$
+    html = html.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
+      try {
+        return katex.renderToString(expr.trim(), { 
+          displayMode: true,
+          strict: false,
+          trust: true
+        });
+      } catch (error) {
+        console.error("KaTeX block error:", error);
+        return `<pre>${expr}</pre>`;
+      }
+    });
+    
+    // Render inline LaTeX wrapped in $...$
+    html = html.replace(/\$(.*?)\$/gs, (_, expr) => {
+      try {
+        return katex.renderToString(expr.trim(), { 
+          displayMode: false,
+          strict: false,
+          trust: true
+        });
+      } catch (error) {
+        console.error("KaTeX inline error:", error);
+        return `<pre>${expr}</pre>`;
+      }
+    });
+    
+    return html;
+  } catch (error) {
+    console.error("LaTeX rendering error:", error);
+    return html;
+  }
+}
+
+// Process each blog to add HTML excerpts with LaTeX support
+const processedBlogs = await Promise.all(blogs.map(async (blog) => {
   // Use the excerpt field if available, otherwise try content, or fallback to message
   const contentToRender =
     blog.excerpt || (blog.content ? blog.content.substring(0, 300) : null);
 
+  // First convert to markdown HTML
+  const htmlContent = contentToRender
+    ? marked(contentToRender)
+    : marked("No content available");
+    
+  // Then process any LaTeX in the HTML
+  const htmlWithLatex = await renderLatex(htmlContent);
+
   return {
     ...blog,
-    htmlExcerpt: contentToRender
-      ? marked(contentToRender)
-      : marked("No content available"),
+    htmlExcerpt: htmlWithLatex,
   };
-});
+}));
 ---
 
 <ul class="blog-list">
@@ -104,6 +154,21 @@ const processedBlogs = blogs.map((blog) => {
   .blog-excerpt :global(div), 
   .blog-excerpt :global(span) {
     color: var(--text-color);
+  }
+  
+  /* LaTeX styling in blog excerpts */
+  .blog-excerpt :global(.katex) {
+    font-size: 1.05em;
+  }
+  
+  .blog-excerpt :global(.katex-display) {
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  
+  .blog-excerpt :global(.katex-html) {
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .blog-meta {
