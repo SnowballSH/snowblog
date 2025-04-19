@@ -76,7 +76,7 @@ export async function renderLatex(html: string): Promise<string> {
 }
 
 // Unique placeholder for double backslashes in LaTeX
-const DOUBLE_BACKSLASH_PLACEHOLDER = "__DOUBLE_BACKSLASH_PLACEHOLDER__";
+const DOUBLE_BACKSLASH_PLACEHOLDER = "DOUBLEBACKSLASHPLACEHOLDER";
 
 /**
  * Converts markdown to HTML with syntax highlighting and LaTeX support
