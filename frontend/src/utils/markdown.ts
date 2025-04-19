@@ -16,6 +16,20 @@ const marked = new Marked(
 );
 
 /**
+ * Decodes common HTML entities to their original characters
+ */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\\&amp;/g, "\\&");
+  // Note: We don't process backslashes here as they're now handled via placeholders
+}
+
+/**
  * Processes LaTeX expressions in HTML content
  */
 export async function renderLatex(html: string): Promise<string> {
@@ -25,7 +39,9 @@ export async function renderLatex(html: string): Promise<string> {
     // Render LaTeX blocks wrapped in $$...$$
     html = html.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
       try {
-        return katex.renderToString(expr.trim(), {
+        // Decode HTML entities before passing to KaTeX
+        const decodedExpr = decodeHtmlEntities(expr.trim());
+        return katex.renderToString(decodedExpr, {
           displayMode: true,
           strict: false,
           trust: true,
@@ -39,7 +55,9 @@ export async function renderLatex(html: string): Promise<string> {
     // Render inline LaTeX wrapped in $...$
     html = html.replace(/\$(.*?)\$/gs, (_, expr) => {
       try {
-        return katex.renderToString(expr.trim(), {
+        // Decode HTML entities before passing to KaTeX
+        const decodedExpr = decodeHtmlEntities(expr.trim());
+        return katex.renderToString(decodedExpr, {
           displayMode: false,
           strict: false,
           trust: true,
@@ -57,6 +75,9 @@ export async function renderLatex(html: string): Promise<string> {
   }
 }
 
+// Unique placeholder for double backslashes in LaTeX
+const DOUBLE_BACKSLASH_PLACEHOLDER = "__DOUBLE_BACKSLASH_PLACEHOLDER__";
+
 /**
  * Converts markdown to HTML with syntax highlighting and LaTeX support
  */
@@ -67,8 +88,27 @@ export async function renderMarkdown(
     return "<p>No content available</p>";
   }
 
-  // First convert markdown to HTML with syntax highlighting
-  let html = await marked.parse(markdown);
+  // Pre-process markdown to protect double backslashes in LaTeX blocks
+  let processedMarkdown = markdown;
+
+  // Replace \\ with a placeholder in block LaTeX
+  processedMarkdown = processedMarkdown.replace(
+    /(\$\$[\s\S]*?\$\$)/g,
+    (match) => {
+      return match.replace(/\\\\/g, DOUBLE_BACKSLASH_PLACEHOLDER);
+    },
+  );
+
+  // Replace \\ with a placeholder in inline LaTeX
+  processedMarkdown = processedMarkdown.replace(/(\$[^\$\n]+?\$)/g, (match) => {
+    return match.replace(/\\\\/g, DOUBLE_BACKSLASH_PLACEHOLDER);
+  });
+
+  // Convert processed markdown to HTML with syntax highlighting
+  let html = await marked.parse(processedMarkdown);
+
+  // Replace placeholders back to double backslashes
+  html = html.replace(new RegExp(DOUBLE_BACKSLASH_PLACEHOLDER, "g"), "\\\\");
 
   // Then process any LaTeX in the HTML
   html = await renderLatex(html);
