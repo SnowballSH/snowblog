@@ -20,19 +20,23 @@ interface Props {
 const { blogs } = Astro.props as Props;
 
 // Process each blog to add HTML excerpts with syntax highlighting and LaTeX support
-const processedBlogs = await Promise.all(blogs.map(async (blog) => {
-  // Use the excerpt field if available, otherwise try content, or fallback to message
-  const contentToRender =
-    blog.excerpt || (blog.content ? blog.content.substring(0, 300) : null);
+const processedBlogs = await Promise.all(
+  blogs.map(async (blog) => {
+    // Use the excerpt field if available, otherwise try content, or fallback to message
+    const contentToRender =
+      blog.excerpt || (blog.content ? blog.content.substring(0, 300) : null);
 
-  // Convert to markdown HTML with syntax highlighting and LaTeX
-  const htmlContent = await renderMarkdown(contentToRender || "No content available");
+    // Convert to markdown HTML with syntax highlighting and LaTeX
+    const htmlContent = await renderMarkdown(
+      contentToRender || "No content available"
+    );
 
-  return {
-    ...blog,
-    htmlExcerpt: htmlContent,
-  };
-}));
+    return {
+      ...blog,
+      htmlExcerpt: htmlContent,
+    };
+  })
+);
 ---
 
 <ul class="blog-list">
@@ -56,10 +60,18 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
           )}
         </p>
         <div class="blog-actions">
-          <a href={`/blog/${blog.id}`} class="btn btn-primary">Read more</a>
-          <a href={`/blog/${blog.id}.raw`} class="btn btn-secondary">View Raw</a>
-          <a href={`/blog/edit/${blog.id}`} class="btn btn-info">Edit</a>
-          <button class="btn btn-danger" data-blog-id={blog.id}>Delete</button>
+          <a href={`/blog/${blog.id}`} class="btn btn-primary">
+            Read more
+          </a>
+          <a href={`/blog/${blog.id}.raw`} class="btn btn-secondary">
+            View Raw
+          </a>
+          <a href={`/blog/edit/${blog.id}`} class="btn btn-info">
+            Edit
+          </a>
+          <button class="btn btn-danger" data-blog-id={blog.id}>
+            Delete
+          </button>
         </div>
       </li>
     ))
@@ -77,16 +89,16 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
     padding-bottom: 1rem;
     border-bottom: 1px solid #eee;
   }
-  
+
   .blog-item h2 {
     margin-top: 0;
   }
-  
+
   .blog-item h2 a {
     color: var(--text-color);
     text-decoration: none;
   }
-  
+
   .blog-item h2 a:hover {
     color: var(--primary-color);
   }
@@ -94,7 +106,7 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
   .blog-excerpt {
     color: var(--text-color);
   }
-  
+
   .blog-excerpt :global(pre),
   .blog-excerpt :global(code) {
     background: #f4f4f4;
@@ -102,55 +114,17 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
     border-radius: 3px;
     font-size: 0.9em;
   }
-  
-  /* Don't override highlight.js colors inside code blocks */
-  .blog-excerpt :global(p), 
-  .blog-excerpt :global(div:not(.hljs *)), 
-  .blog-excerpt :global(span:not(.hljs *)) {
-    color: var(--text-color);
-  }
-  
-  /* Ensure highlight.js colors are preserved */
-  .blog-excerpt :global(.hljs-keyword),
-  .blog-excerpt :global(.hljs-selector-tag),
-  .blog-excerpt :global(.hljs-type),
-  .blog-excerpt :global(.hljs-literal),
-  .blog-excerpt :global(.hljs-symbol),
-  .blog-excerpt :global(.hljs-bullet),
-  .blog-excerpt :global(.hljs-attribute),
-  .blog-excerpt :global(.hljs-title),
-  .blog-excerpt :global(.hljs-section),
-  .blog-excerpt :global(.hljs-name) {
-    color: inherit;
-  }
-  
-  .blog-excerpt :global(.hljs-attr),
-  .blog-excerpt :global(.hljs-variable),
-  .blog-excerpt :global(.hljs-template-variable),
-  .blog-excerpt :global(.hljs-code),
-  .blog-excerpt :global(.hljs-string),
-  .blog-excerpt :global(.hljs-doctag),
-  .blog-excerpt :global(.hljs-number),
-  .blog-excerpt :global(.hljs-regexp),
-  .blog-excerpt :global(.hljs-meta) {
-    color: inherit;
-  }
-  
-  .blog-excerpt :global(.hljs-comment),
-  .blog-excerpt :global(.hljs-quote) {
-    color: inherit;
-  }
-  
+
   /* LaTeX styling in blog excerpts */
   .blog-excerpt :global(.katex) {
     font-size: 1.05em;
   }
-  
+
   .blog-excerpt :global(.katex-display) {
     margin: 1rem 0;
     overflow-x: auto;
   }
-  
+
   .blog-excerpt :global(.katex-html) {
     overflow-x: auto;
     overflow-y: hidden;
@@ -177,39 +151,47 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
 
 <script>
   // Add click handlers to all delete buttons
-  document.querySelectorAll('.btn-danger').forEach(button => {
-    button.addEventListener('click', async function() {
-      const blogId = this.getAttribute('data-blog-id');
+  document.querySelectorAll(".btn-danger").forEach((button) => {
+    button.addEventListener("click", async function () {
+      const blogId = this.getAttribute("data-blog-id");
       if (!blogId) return;
-      
+
       // Show confirmation dialog
-      if (confirm('Are you sure you want to delete this blog post? This action cannot be undone.')) {
+      if (
+        confirm(
+          "Are you sure you want to delete this blog post? This action cannot be undone."
+        )
+      ) {
         try {
           console.log(`Attempting to delete blog with ID: ${blogId}`);
-          const response = await fetch(`http://localhost:8000/api/blogs/${blogId}`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            // Fetch API requires credentials: 'same-origin' for cookies/sessions
-            credentials: 'same-origin',
-          });
-          console.log('Delete response status:', response.status);
-          
+          const response = await fetch(
+            `http://localhost:8000/api/blogs/${blogId}`,
+            {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              // Fetch API requires credentials: 'same-origin' for cookies/sessions
+              credentials: "same-origin",
+            }
+          );
+          console.log("Delete response status:", response.status);
+
           if (response.ok) {
             // Remove the blog item from the DOM
-            const blogItem = this.closest('.blog-item');
+            const blogItem = this.closest(".blog-item");
             if (blogItem) {
-              blogItem.style.opacity = '0';
+              blogItem.style.opacity = "0";
               setTimeout(() => {
                 blogItem.remove();
-                
+
                 // If no blogs left, show message
-                if (document.querySelectorAll('.blog-item').length === 0) {
-                  const blogList = document.querySelector('.blog-list');
+                if (document.querySelectorAll(".blog-item").length === 0) {
+                  const blogList = document.querySelector(".blog-list");
                   if (blogList) {
-                    blogList.innerHTML = '<li class="no-blogs">No blog posts available. <a href="/create">Create one?</a></li>';
+                    blogList.innerHTML =
+                      '<li class="no-blogs">No blog posts available. <a href="/create">Create one?</a></li>';
                   }
                 }
               }, 300);
@@ -224,8 +206,12 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
               // If not JSON, get as text
               errorMessage = await response.text();
             }
-            console.error(`Delete failed with status ${response.status}: ${errorMessage}`);
-            alert(`Failed to delete: ${errorMessage} (Status: ${response.status})`);
+            console.error(
+              `Delete failed with status ${response.status}: ${errorMessage}`
+            );
+            alert(
+              `Failed to delete: ${errorMessage} (Status: ${response.status})`
+            );
           }
         } catch (error) {
           alert(`Error: ${error.message}`);
