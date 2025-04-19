@@ -1,7 +1,7 @@
 ---
 // src/components/BlogPost.astro
-import { marked } from "marked";
-import katex from "katex";
+import { renderMarkdown } from "../utils/markdown";
+import "highlight.js/styles/github.css";
 import "katex/dist/katex.min.css";
 
 interface Blog {
@@ -19,52 +19,8 @@ interface Props {
 
 const { blog } = Astro.props as Props;
 
-// Simple function to render LaTeX in HTML content
-async function renderContent(markdown: string | undefined) {
-  if (!markdown) {
-    return "<p>No content available</p>";
-  }
-
-  // First convert markdown to HTML
-  let html = await marked(markdown);
-  
-  try {
-    // Render LaTeX blocks wrapped in $$...$$
-    html = html.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
-      try {
-        return katex.renderToString(expr.trim(), { 
-          displayMode: true,
-          strict: false,
-          trust: true
-        });
-      } catch (error) {
-        console.error("KaTeX block error:", error);
-        return `<pre>${expr}</pre>`;
-      }
-    });
-    
-    // Render inline LaTeX wrapped in $...$
-    html = html.replace(/\$(.*?)\$/gs, (_, expr) => {
-      try {
-        return katex.renderToString(expr.trim(), { 
-          displayMode: false,
-          strict: false,
-          trust: true
-        });
-      } catch (error) {
-        console.error("KaTeX inline error:", error);
-        return `<pre>${expr}</pre>`;
-      }
-    });
-    
-    return html;
-  } catch (error) {
-    console.error("LaTeX rendering error:", error);
-    return html;
-  }
-}
-
-const renderedContent = await renderContent(blog.content);
+// Process markdown content with syntax highlighting and LaTeX
+const renderedContent = await renderMarkdown(blog.content);
 ---
 
 <article>
@@ -170,10 +126,42 @@ const renderedContent = await renderContent(blog.content);
     margin-bottom: 1rem;
   }
   
-  .content :global(div), 
-  .content :global(span),
-  .content :global(li) {
+  /* Don't override highlight.js colors inside code blocks */
+  .content :global(div:not(.hljs *)), 
+  .content :global(span:not(.hljs *)),
+  .content :global(li:not(.hljs *)) {
     color: var(--text-color);
+  }
+  
+  /* Ensure highlight.js colors are preserved */
+  .content :global(.hljs-keyword),
+  .content :global(.hljs-selector-tag),
+  .content :global(.hljs-type),
+  .content :global(.hljs-literal),
+  .content :global(.hljs-symbol),
+  .content :global(.hljs-bullet),
+  .content :global(.hljs-attribute),
+  .content :global(.hljs-title),
+  .content :global(.hljs-section),
+  .content :global(.hljs-name) {
+    color: inherit;
+  }
+  
+  .content :global(.hljs-attr),
+  .content :global(.hljs-variable),
+  .content :global(.hljs-template-variable),
+  .content :global(.hljs-code),
+  .content :global(.hljs-string),
+  .content :global(.hljs-doctag),
+  .content :global(.hljs-number),
+  .content :global(.hljs-regexp),
+  .content :global(.hljs-meta) {
+    color: inherit;
+  }
+  
+  .content :global(.hljs-comment),
+  .content :global(.hljs-quote) {
+    color: inherit;
   }
   
   .content :global(h1) {

@@ -1,6 +1,8 @@
 ---
 // src/components/BlogList.astro
-import { marked } from "marked";
+import { renderMarkdown } from "../utils/markdown";
+import "highlight.js/styles/github.css";
+import "katex/dist/katex.min.css";
 
 interface Blog {
   id: string;
@@ -17,67 +19,18 @@ interface Props {
 
 const { blogs } = Astro.props as Props;
 
-// Import KaTeX for LaTeX rendering
-import katex from "katex";
-import "katex/dist/katex.min.css";
-
-// Simple function to render LaTeX in HTML content
-async function renderLatex(html) {
-  if (!html) return html;
-  
-  try {
-    // Render LaTeX blocks wrapped in $$...$$
-    html = html.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
-      try {
-        return katex.renderToString(expr.trim(), { 
-          displayMode: true,
-          strict: false,
-          trust: true
-        });
-      } catch (error) {
-        console.error("KaTeX block error:", error);
-        return `<pre>${expr}</pre>`;
-      }
-    });
-    
-    // Render inline LaTeX wrapped in $...$
-    html = html.replace(/\$(.*?)\$/gs, (_, expr) => {
-      try {
-        return katex.renderToString(expr.trim(), { 
-          displayMode: false,
-          strict: false,
-          trust: true
-        });
-      } catch (error) {
-        console.error("KaTeX inline error:", error);
-        return `<pre>${expr}</pre>`;
-      }
-    });
-    
-    return html;
-  } catch (error) {
-    console.error("LaTeX rendering error:", error);
-    return html;
-  }
-}
-
-// Process each blog to add HTML excerpts with LaTeX support
+// Process each blog to add HTML excerpts with syntax highlighting and LaTeX support
 const processedBlogs = await Promise.all(blogs.map(async (blog) => {
   // Use the excerpt field if available, otherwise try content, or fallback to message
   const contentToRender =
     blog.excerpt || (blog.content ? blog.content.substring(0, 300) : null);
 
-  // First convert to markdown HTML
-  const htmlContent = contentToRender
-    ? marked(contentToRender)
-    : marked("No content available");
-    
-  // Then process any LaTeX in the HTML
-  const htmlWithLatex = await renderLatex(htmlContent);
+  // Convert to markdown HTML with syntax highlighting and LaTeX
+  const htmlContent = await renderMarkdown(contentToRender || "No content available");
 
   return {
     ...blog,
-    htmlExcerpt: htmlWithLatex,
+    htmlExcerpt: htmlContent,
   };
 }));
 ---
@@ -150,10 +103,42 @@ const processedBlogs = await Promise.all(blogs.map(async (blog) => {
     font-size: 0.9em;
   }
   
+  /* Don't override highlight.js colors inside code blocks */
   .blog-excerpt :global(p), 
-  .blog-excerpt :global(div), 
-  .blog-excerpt :global(span) {
+  .blog-excerpt :global(div:not(.hljs *)), 
+  .blog-excerpt :global(span:not(.hljs *)) {
     color: var(--text-color);
+  }
+  
+  /* Ensure highlight.js colors are preserved */
+  .blog-excerpt :global(.hljs-keyword),
+  .blog-excerpt :global(.hljs-selector-tag),
+  .blog-excerpt :global(.hljs-type),
+  .blog-excerpt :global(.hljs-literal),
+  .blog-excerpt :global(.hljs-symbol),
+  .blog-excerpt :global(.hljs-bullet),
+  .blog-excerpt :global(.hljs-attribute),
+  .blog-excerpt :global(.hljs-title),
+  .blog-excerpt :global(.hljs-section),
+  .blog-excerpt :global(.hljs-name) {
+    color: inherit;
+  }
+  
+  .blog-excerpt :global(.hljs-attr),
+  .blog-excerpt :global(.hljs-variable),
+  .blog-excerpt :global(.hljs-template-variable),
+  .blog-excerpt :global(.hljs-code),
+  .blog-excerpt :global(.hljs-string),
+  .blog-excerpt :global(.hljs-doctag),
+  .blog-excerpt :global(.hljs-number),
+  .blog-excerpt :global(.hljs-regexp),
+  .blog-excerpt :global(.hljs-meta) {
+    color: inherit;
+  }
+  
+  .blog-excerpt :global(.hljs-comment),
+  .blog-excerpt :global(.hljs-quote) {
+    color: inherit;
   }
   
   /* LaTeX styling in blog excerpts */

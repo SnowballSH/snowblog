@@ -6,6 +6,7 @@
     "npm:easymde@^2.20.0": "2.20.0",
     "npm:highlight.js@^11.11.1": "11.11.1",
     "npm:katex@~0.16.21": "0.16.21",
+    "npm:marked-highlight@^2.2.1": "2.2.1_marked@15.0.7",
     "npm:marked@^15.0.7": "15.0.7"
   },
   "npm": {
@@ -1000,6 +1001,12 @@
     "markdown-table@3.0.4": {
       "integrity": "sha512-wiYz4+JrLyb/DqW2hkFJxP7Vd7JuTDm77fvbM8VfEQdmSMqcImWeeRbHwZjBjIFki/VaMK2BhFi7oUUZeM5bqw=="
     },
+    "marked-highlight@2.2.1_marked@15.0.7": {
+      "integrity": "sha512-SiCIeEiQbs9TxGwle9/OwbOejHCZsohQRaNTY2u8euEXYt2rYUFoiImUirThU3Gd/o6Q1gHGtH9qloHlbJpNIA==",
+      "dependencies": [
+        "marked@15.0.7"
+      ]
+    },
     "marked@15.0.7": {
       "integrity": "sha512-dgLIeKGLx5FwziAnsk4ONoGwHwGPJzselimvlVskE9XLN4Orv9u2VA3GWw/lYUqjfA0rUT/6fqKwfZJapP9BEg=="
     },
@@ -1993,6 +2000,7 @@
         "npm:easymde@^2.20.0",
         "npm:highlight.js@^11.11.1",
         "npm:katex@~0.16.21",
+        "npm:marked-highlight@^2.2.1",
         "npm:marked@^15.0.7"
       ]
     }

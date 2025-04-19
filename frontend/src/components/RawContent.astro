@@ -1,13 +1,18 @@
 ---
 // src/components/RawContent.astro
+import "highlight.js/styles/github.css";
+
 interface Props {
   content: string | undefined;
 }
 
 const { content } = Astro.props as Props;
+
+// Display the raw markdown content
+const processedContent = content || "No content available";
 ---
 
 <pre
   style="background-color: #f4f4f4; padding: 1rem; overflow-x: auto;">
-  {content || "No content available"}
+  {processedContent}
 </pre>
