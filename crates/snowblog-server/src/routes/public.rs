@@ -5,7 +5,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use snowblog_core::domain::{Language, PostStatus, Slug};
 use snowblog_core::store::{PostFilter, PostRecord, StoredRender, Translation};
 
@@ -59,7 +59,7 @@ struct PostDetail {
 pub async fn list_posts(
     State(state): State<AppState>,
     Query(query): Query<ListQuery>,
-) -> Result<Json<serde_json::Value>, Problem> {
+) -> Result<Json<Value>, Problem> {
     let language = parse_optional_language(query.language.as_deref())?;
     let records = state
         .service
