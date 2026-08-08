@@ -2748,10 +2748,12 @@ name = "snowblog"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "snowblog-core",
  "snowblog-server",
  "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 
