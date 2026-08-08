@@ -17,6 +17,7 @@ blake3 = "1"
 bytes = "1"
 clap = { version = "4", features = ["derive", "env"] }
 constant_time_eq = "0.5"
+http-body-util = "0.1"
 jiff = { version = "0.2", features = ["serde"] }
 oxilangtag = "0.1"
 serde = { version = "1", features = ["derive"] }
