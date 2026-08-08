@@ -56,7 +56,7 @@ fn translation(language: &str, source: &str) -> TranslationInput {
 
 fn png() -> Vec<u8> {
     std::fs::read(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/blogs/assets/mathishard.png"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/blogs/assets/blue_square.png"),
     )
     .unwrap()
 }

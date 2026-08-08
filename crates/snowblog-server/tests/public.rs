@@ -65,11 +65,9 @@ async fn seed(app: &TestApp) {
             Revision(3),
             AssetInput {
                 path: "assets/pic.png".to_string(),
-                content: std::fs::read(
-                    common::package_root().join(
-                        "../../crates/snowblog-core/tests/fixtures/blogs/assets/mathishard.png",
-                    ),
-                )
+                content: std::fs::read(common::package_root().join(
+                    "../../crates/snowblog-core/tests/fixtures/blogs/assets/blue_square.png",
+                ))
                 .unwrap(),
                 content_type: "image/png".to_string(),
             },

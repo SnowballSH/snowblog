@@ -25,8 +25,8 @@ async fn service() -> BlogService {
 }
 
 #[test]
-fn parses_first_blog_frontmatter() {
-    let raw = std::fs::read_to_string(fixtures().join("first_blog.typ")).unwrap();
+fn parses_hello_world_frontmatter() {
+    let raw = std::fs::read_to_string(fixtures().join("hello_world.typ")).unwrap();
     let (front, body) = parse_frontmatter(&raw).unwrap();
     assert_eq!(front.title, "Hello, Snowblog");
     assert_eq!(
@@ -34,7 +34,7 @@ fn parses_first_blog_frontmatter() {
         Some("A demonstration post exercising the importer's frontmatter handling.")
     );
     assert_eq!(front.date.as_deref(), Some("2024-01-15"));
-    assert_eq!(front.tags, vec!["typst", "astro", "blog"]);
+    assert_eq!(front.tags, vec!["demo", "typst", "blog"]);
     assert!(!front.draft);
     assert!(!front.hidden);
     assert!(!body.contains("#metadata"));
@@ -44,10 +44,10 @@ fn parses_first_blog_frontmatter() {
 
 #[test]
 fn commented_out_flags_are_ignored() {
-    let raw = std::fs::read_to_string(fixtures().join("imo_2026.typ")).unwrap();
+    let raw = std::fs::read_to_string(fixtures().join("graphics_demo.typ")).unwrap();
     let (front, _) = parse_frontmatter(&raw).unwrap();
     assert!(!front.hidden, "commented-out hidden flag must not count");
-    assert_eq!(front.tags, vec!["math"]);
+    assert_eq!(front.tags, vec!["demo"]);
 }
 
 #[test]
@@ -79,7 +79,7 @@ async fn import_dir_brings_over_the_fixtures() {
 
     let first = service
         .store()
-        .get_post(&Slug::parse("first_blog").unwrap())
+        .get_post(&Slug::parse("hello_world").unwrap())
         .await
         .unwrap()
         .unwrap();
@@ -93,31 +93,31 @@ async fn import_dir_brings_over_the_fixtures() {
     assert_eq!(zh.title, "你好，雪博客");
     assert!(first.render(&Language::parse("zh").unwrap()).is_some());
 
-    let college = service
+    let media = service
         .store()
-        .get_post(&Slug::parse("college_year_1").unwrap())
+        .get_post(&Slug::parse("media_demo").unwrap())
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(college.asset_manifest.len(), 3);
-    let html = &college
+    assert_eq!(media.asset_manifest.len(), 3);
+    let html = &media.render(&Language::parse("en").unwrap()).unwrap().html;
+    assert!(
+        html.contains("/api/v1/posts/media_demo/assets/assets/photo.jpg"),
+        "asset url rewrite missing"
+    );
+
+    let graphics = service
+        .store()
+        .get_post(&Slug::parse("graphics_demo").unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    let graphics_html = &graphics
         .render(&Language::parse("en").unwrap())
         .unwrap()
         .html;
     assert!(
-        html.contains("/api/v1/posts/college_year_1/assets/assets/nyc_times_square.jpg"),
-        "asset url rewrite missing"
-    );
-
-    let imo = service
-        .store()
-        .get_post(&Slug::parse("imo_2026").unwrap())
-        .await
-        .unwrap()
-        .unwrap();
-    let imo_html = &imo.render(&Language::parse("en").unwrap()).unwrap().html;
-    assert!(
-        imo_html.contains("<svg"),
+        graphics_html.contains("<svg"),
         "cetz canvases must render as svg"
     );
 }
@@ -130,7 +130,7 @@ async fn second_import_run_is_idempotent() {
         .unwrap();
     let first = service
         .store()
-        .get_post(&Slug::parse("first_blog").unwrap())
+        .get_post(&Slug::parse("hello_world").unwrap())
         .await
         .unwrap()
         .unwrap();
@@ -143,7 +143,7 @@ async fn second_import_run_is_idempotent() {
 
     let unchanged = service
         .store()
-        .get_post(&Slug::parse("first_blog").unwrap())
+        .get_post(&Slug::parse("hello_world").unwrap())
         .await
         .unwrap()
         .unwrap();

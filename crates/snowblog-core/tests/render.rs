@@ -26,8 +26,7 @@ fn input(source: &str) -> RenderInput {
 }
 
 fn png_pixel() -> Vec<u8> {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/blogs/assets/doleetcodedaily.png");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/blogs/assets/dot.png");
     std::fs::read(fixture).expect("fixture png")
 }
 

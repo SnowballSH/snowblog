@@ -214,7 +214,7 @@ async fn asset_upload_serves_publicly_after_publish() {
 
     let png = std::fs::read(
         common::package_root()
-            .join("../../crates/snowblog-core/tests/fixtures/blogs/assets/doleetcodedaily.png"),
+            .join("../../crates/snowblog-core/tests/fixtures/blogs/assets/blue_square.png"),
     )
     .unwrap();
     let upload = with_if_match(
