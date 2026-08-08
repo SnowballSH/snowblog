@@ -97,11 +97,27 @@ pub async fn get_post(
             .translation(&record.post.default_language)
             .ok_or_else(|| Problem::internal("default translation missing"))?,
     };
-    let render = record
-        .render(&translation.language)
-        .ok_or_else(|| Problem::internal("published post lacks a render"))?;
+    let render = match record.render(&translation.language) {
+        Some(render) => render,
+        None if language.is_some() => {
+            return Err(Problem::new(
+                StatusCode::NOT_FOUND,
+                "language_not_available",
+                format!(
+                    "post {slug} has no rendered {} translation",
+                    translation.language
+                ),
+            ));
+        }
+        None => return Err(Problem::internal("published post lacks a default render")),
+    };
 
-    let etag = post_etag(record.post.revision.0, &render.input_hash);
+    let etag = post_etag(
+        record.post.revision.0,
+        translation.language.as_str(),
+        &render.input_hash,
+        &render.renderer_version,
+    );
     if if_none_match_hits(&headers, &etag) {
         return Ok(not_modified(&etag));
     }

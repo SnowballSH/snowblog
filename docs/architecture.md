@@ -18,7 +18,23 @@ only on success. Publishing requires a fresh, successful render for every
 translation.
 
 The timeout aborts waiting on the compile, not the compile thread itself;
-an abandoned thread finishes in the background and its result is discarded.
+an abandoned thread finishes in the background and its result is discarded
+(a known v1 bound: wall-clock per request is limited, compile CPU is not —
+acceptable while authorship is admin-only).
+
+Adversarial-review hardening (2026-08-07): `input_hash` covers the resolved
+asset URL prefix in addition to source and asset manifest, so slug renames
+mark renders stale and `rerender` repairs them; artifact writes are guarded
+by the post revision captured when the compile started, so a slow render of
+older input can never overwrite a newer artifact; the publish gate requires
+the default language to have a fresh translation; post ETags include the
+language and renderer version so re-renders after compiler upgrades and
+same-source translations are cache-distinct; unmatched admin paths are
+caught inside the auth layer (401 before existence disclosure); every error
+response, including axum's built-in body-limit and body-parse rejections, is
+normalized to problem+json; oversized sources are rejected before
+persistence; the CLI honors the same render bounds and font directories as
+the server.
 
 ## Spike findings (typst 0.15.1)
 

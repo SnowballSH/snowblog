@@ -64,3 +64,18 @@ async fn admin_disabled_when_no_token_file() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn unmatched_admin_paths_still_require_auth() {
+    let app = app_with_admin().await;
+    let request = Request::builder()
+        .uri("/api/v1/admin/definitely_not_a_route")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(&app, request).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "admin prefix must authenticate before revealing route existence: {body}"
+    );
+}

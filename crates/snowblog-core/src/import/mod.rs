@@ -200,7 +200,12 @@ async fn import_one(
     let (render_failures, mut revision) = match result {
         Ok(value) => value,
         Err(error) => {
-            let _ = service.store().delete_post(slug, revision).await;
+            if let Ok(Some(current)) = service.store().get_post(slug).await {
+                let _ = service
+                    .store()
+                    .delete_post(slug, current.post.revision)
+                    .await;
+            }
             return Err(error);
         }
     };

@@ -63,10 +63,14 @@ fn transform_calls(source: &str, pattern: &str, transform: impl Fn(&str) -> Stri
 fn balanced_call_end(text: &str, open_index: usize) -> Option<usize> {
     let mut depth = 1usize;
     let mut in_string = false;
-    let mut previous = '\0';
+    let mut escaped = false;
     for (offset, c) in text[open_index..].char_indices() {
         if in_string {
-            if c == '"' && previous != '\\' {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
                 in_string = false;
             }
         } else {
@@ -82,7 +86,6 @@ fn balanced_call_end(text: &str, open_index: usize) -> Option<usize> {
                 _ => {}
             }
         }
-        previous = c;
     }
     None
 }
@@ -115,6 +118,14 @@ mod tests {
         let source = "#set page(numbering: \"(1)\")\n= T";
         let adapted = adapt_source(source, &SourceAdaptation::default());
         assert!(adapted.contains("= T"));
+    }
+
+    #[test]
+    fn handles_escaped_backslash_before_closing_quote() {
+        let source = "#set page(footer: \"a\\\\\")\n= Title\nBody";
+        let adapted = adapt_source(source, &SourceAdaptation::default());
+        assert!(!adapted.contains("#set page"), "{adapted}");
+        assert!(adapted.contains("= Title"));
     }
 
     #[test]

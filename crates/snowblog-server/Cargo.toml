@@ -10,6 +10,7 @@ anyhow.workspace = true
 axum.workspace = true
 clap.workspace = true
 constant_time_eq.workspace = true
+http-body-util.workspace = true
 jiff.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -21,5 +22,4 @@ tower-http.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-http-body-util.workspace = true
 tempfile.workspace = true

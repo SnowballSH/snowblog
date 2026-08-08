@@ -100,6 +100,7 @@ impl BlogService {
 
     pub fn freshness(&self, record: &PostRecord) -> Vec<TranslationFreshness> {
         let manifest = manifest_pairs(record);
+        let prefix = self.asset_url_prefix(record);
         record
             .translations
             .iter()
@@ -107,7 +108,8 @@ impl BlogService {
                 let freshness = match record.render(&translation.language) {
                     None => Freshness::Missing,
                     Some(render) => {
-                        let expected_hash = input_hash(&translation.source, &manifest);
+                        let expected_hash =
+                            input_hash(&translation.source, &manifest, prefix.as_deref());
                         if render.input_hash == expected_hash
                             && render.renderer_version == self.renderer.version()
                         {
@@ -185,7 +187,13 @@ impl BlogService {
             .get_post(slug)
             .await?
             .ok_or(StoreError::NotFound)?;
-        let freshness = self.freshness(&record);
+        let mut freshness = self.freshness(&record);
+        if record.translation(&record.post.default_language).is_none() {
+            freshness.push(TranslationFreshness {
+                language: record.post.default_language.clone(),
+                freshness: Freshness::Missing,
+            });
+        }
         if record.translations.is_empty()
             || freshness.iter().any(|f| f.freshness != Freshness::Fresh)
         {
@@ -281,13 +289,25 @@ impl BlogService {
                 let artifact = RenderArtifact {
                     html,
                     renderer_version: self.renderer.version().to_string(),
-                    input_hash: input_hash(&translation.source, &manifest_pairs(record)),
+                    input_hash: input_hash(
+                        &translation.source,
+                        &manifest_pairs(record),
+                        self.asset_url_prefix(record).as_deref(),
+                    ),
                     warnings: warnings.clone(),
                     rendered_at: Timestamp::now(),
                 };
-                self.store
-                    .replace_render(&record.post.id, language, artifact)
+                let stored = self
+                    .store
+                    .replace_render(&record.post.id, language, record.post.revision, artifact)
                     .await?;
+                if !stored {
+                    tracing::info!(
+                        slug = %record.post.slug,
+                        %language,
+                        "render discarded: the post changed while compiling"
+                    );
+                }
                 RenderStatus::Ok { warnings }
             }
             RenderOutcome::Failure { diagnostics } => RenderStatus::Failed { diagnostics },
@@ -296,6 +316,12 @@ impl BlogService {
             language: language.clone(),
             render,
         })
+    }
+
+    fn asset_url_prefix(&self, record: &PostRecord) -> Option<String> {
+        self.asset_url_template
+            .as_ref()
+            .map(|template| template.replace("{slug}", record.post.slug.as_str()))
     }
 
     async fn render_input(
@@ -313,10 +339,7 @@ impl BlogService {
                 content: asset.content.into(),
             })
             .collect();
-        let asset_url_prefix = self
-            .asset_url_template
-            .as_ref()
-            .map(|template| template.replace("{slug}", record.post.slug.as_str()));
+        let asset_url_prefix = self.asset_url_prefix(record);
         Ok(RenderInput {
             source,
             assets,

@@ -292,7 +292,12 @@ async fn delete_post_cascades() {
         .await
         .unwrap();
     store
-        .replace_render(&created.post.id, &lang("en"), artifact("<p>hi</p>"))
+        .replace_render(
+            &created.post.id,
+            &lang("en"),
+            Revision(3),
+            artifact("<p>hi</p>"),
+        )
         .await
         .unwrap();
 
@@ -370,10 +375,30 @@ async fn render_round_trips() {
         .upsert_translation(&s, Revision(1), translation("en", "= A"))
         .await
         .unwrap();
-    store
-        .replace_render(&created.post.id, &lang("en"), artifact("<p>body</p>"))
+    let stored = store
+        .replace_render(
+            &created.post.id,
+            &lang("en"),
+            Revision(2),
+            artifact("<p>body</p>"),
+        )
         .await
         .unwrap();
+    assert!(stored);
+
+    let stale_write = store
+        .replace_render(
+            &created.post.id,
+            &lang("en"),
+            Revision(1),
+            artifact("<p>stale</p>"),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !stale_write,
+        "a stale snapshot must not overwrite the artifact"
+    );
 
     let record = store.get_post(&s).await.unwrap().unwrap();
     assert_eq!(

@@ -292,3 +292,121 @@ async fn asset_traversal_and_missing_404() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path} leaked");
     }
 }
+
+#[tokio::test]
+async fn etag_distinguishes_languages_with_identical_sources() {
+    let app = app_without_admin().await;
+    let service = app.service().await;
+    service
+        .store()
+        .create_post(snowblog_core::store::NewPost {
+            slug: slug("twins"),
+            default_language: lang("en"),
+            tags: vec![],
+            published_at: Some(jiff::Timestamp::now()),
+        })
+        .await
+        .unwrap();
+    for (language, revision) in [("en", 1), ("zh", 2)] {
+        service
+            .save_translation(
+                &slug("twins"),
+                Revision(revision),
+                TranslationInput {
+                    language: lang(language),
+                    title: format!("{language} twin"),
+                    description: String::new(),
+                    source: "= same body".into(),
+                },
+            )
+            .await
+            .unwrap();
+    }
+    service.publish(&slug("twins"), Revision(3)).await.unwrap();
+
+    let en = send_raw(&app, get("/api/v1/posts/twins?language=en")).await;
+    let zh = send_raw(&app, get("/api/v1/posts/twins?language=zh")).await;
+    let en_etag = en.headers()[header::ETAG].to_str().unwrap().to_string();
+    let zh_etag = zh.headers()[header::ETAG].to_str().unwrap().to_string();
+    assert_ne!(en_etag, zh_etag, "etags must differ per language");
+}
+
+#[tokio::test]
+async fn translation_without_render_is_language_not_available() {
+    let app = app_without_admin().await;
+    seed(&app).await;
+    let service = app.service().await;
+    let record = service
+        .store()
+        .get_post(&slug("beta"))
+        .await
+        .unwrap()
+        .unwrap();
+    service
+        .save_translation(
+            &slug("beta"),
+            record.post.revision,
+            TranslationInput {
+                language: lang("fr"),
+                title: "Cassé".into(),
+                description: String::new(),
+                source: "#undefined_fn()".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let (status, body) = send(&app, get("/api/v1/posts/beta?language=fr")).await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "broken translation leaked: {body}"
+    );
+    assert_eq!(body["code"], "language_not_available");
+}
+
+#[tokio::test]
+async fn etag_changes_when_renderer_version_changes() {
+    let app = app_without_admin().await;
+    seed(&app).await;
+    let before = send_raw(&app, get("/api/v1/posts/beta")).await;
+    let old_etag = before.headers()[header::ETAG].to_str().unwrap().to_string();
+
+    let service = app.service().await;
+    let record = service
+        .store()
+        .get_post(&slug("beta"))
+        .await
+        .unwrap()
+        .unwrap();
+    let render = record.render(&lang("en")).unwrap();
+    let stored = service
+        .store()
+        .replace_render(
+            &record.post.id,
+            &lang("en"),
+            record.post.revision,
+            snowblog_core::store::RenderArtifact {
+                html: render.html.clone(),
+                renderer_version: "9.9.9".into(),
+                input_hash: render.input_hash.clone(),
+                warnings: vec![],
+                rendered_at: jiff::Timestamp::now(),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(stored);
+
+    let request = Request::builder()
+        .uri("/api/v1/posts/beta")
+        .header(header::IF_NONE_MATCH, &old_etag)
+        .body(Body::empty())
+        .unwrap();
+    let after = send_raw(&app, request).await;
+    assert_eq!(
+        after.status(),
+        StatusCode::OK,
+        "a renderer upgrade must invalidate cached representations"
+    );
+    assert_ne!(after.headers()[header::ETAG].to_str().unwrap(), old_etag);
+}

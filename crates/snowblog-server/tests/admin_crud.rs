@@ -309,3 +309,49 @@ async fn admin_list_shows_all_statuses() {
     let posts = body["posts"].as_array().unwrap();
     assert_eq!(posts.len(), 2);
 }
+
+#[tokio::test]
+async fn oversized_source_rejected_as_problem_json() {
+    let app = app_with_admin().await;
+    create_post(&app, "big_source").await;
+    let big = "a".repeat(600 * 1024);
+    let save = with_if_match(
+        put_translation("/api/v1/admin/posts/big_source/translations/en", &big),
+        1,
+    );
+    let (status, body) = send(&app, save).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{body}");
+    assert_eq!(body["code"], "source_too_large");
+
+    let (_, admin_view) = send(
+        &app,
+        admin_json("GET", "/api/v1/admin/posts/big_source", json!(null)),
+    )
+    .await;
+    assert!(
+        admin_view["translations"].as_array().unwrap().is_empty(),
+        "oversized source must not persist"
+    );
+}
+
+#[tokio::test]
+async fn body_limit_rejections_are_problem_json() {
+    let app = app_with_admin().await;
+    create_post(&app, "limit_check").await;
+    let upload = with_if_match(
+        Request::builder()
+            .method("PUT")
+            .uri("/api/v1/admin/posts/limit_check/assets/assets/big.bin")
+            .header(header::AUTHORIZATION, format!("Bearer {TEST_TOKEN}"))
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .body(Body::from(vec![0u8; 128 * 1024]))
+            .unwrap(),
+        1,
+    );
+    let response = send_raw(&app, upload).await;
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "application/problem+json"
+    );
+}

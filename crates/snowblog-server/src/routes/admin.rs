@@ -248,6 +248,18 @@ pub async fn put_translation(
 ) -> Result<Json<serde_json::Value>, Problem> {
     let slug = parse_slug(&slug)?;
     let language = parse_language(&language)?;
+    let max_source_bytes = state.service.renderer().limits().max_source_bytes;
+    if body.source.len() > max_source_bytes {
+        return Err(Problem::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "source_too_large",
+            format!(
+                "source is {} bytes, exceeding the {} byte limit",
+                body.source.len(),
+                max_source_bytes
+            ),
+        ));
+    }
     let outcome = state
         .service
         .save_translation(

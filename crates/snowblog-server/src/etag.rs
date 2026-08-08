@@ -1,8 +1,13 @@
 use axum::http::{HeaderMap, header};
 
-pub fn post_etag(revision: i64, input_hash: &str) -> String {
+pub fn post_etag(
+    revision: i64,
+    language: &str,
+    input_hash: &str,
+    renderer_version: &str,
+) -> String {
     let hash_prefix: String = input_hash.chars().take(16).collect();
-    format!("\"{revision}-{hash_prefix}\"")
+    format!("\"{revision}-{language}-{hash_prefix}-{renderer_version}\"")
 }
 
 pub fn asset_etag(content_hash: &str) -> String {

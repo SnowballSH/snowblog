@@ -289,3 +289,51 @@ async fn rerender_stale_fixes_only_stale() {
             .contains("New content")
     );
 }
+
+#[tokio::test]
+async fn publish_blocked_without_default_translation() {
+    let service = service().await;
+    let s = draft(&service, "no_default").await;
+    service
+        .save_translation(&s, Revision(1), translation("zh", "= Chinese only"))
+        .await
+        .unwrap();
+    let result = service.publish(&s, Revision(2)).await;
+    assert!(
+        matches!(result, Err(ServiceError::PublishBlocked(_))),
+        "publishing without a default-language translation must be blocked: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn slug_rename_marks_renders_stale() {
+    let service = service().await;
+    let s = draft(&service, "renamable").await;
+    service
+        .save_translation(&s, Revision(1), translation("en", "= Content"))
+        .await
+        .unwrap();
+    service
+        .store()
+        .update_post_meta(
+            &s,
+            Revision(2),
+            snowblog_core::store::PostPatch {
+                slug: Some(slug("renamed_now")),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let record = service
+        .store()
+        .get_post(&slug("renamed_now"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        service.freshness(&record)[0].freshness,
+        Freshness::Stale,
+        "renders bake the slug into asset URLs, so a rename must read as stale"
+    );
+}

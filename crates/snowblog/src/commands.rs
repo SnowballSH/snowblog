@@ -53,12 +53,22 @@ pub struct SharedServiceArgs {
     database: PathBuf,
     #[arg(long, env = "SNOWBLOG_PACKAGE_ROOT", default_value = "vendor/packages")]
     package_root: PathBuf,
+    #[arg(long = "font-dir", env = "SNOWBLOG_FONT_DIRS", value_delimiter = ':')]
+    font_dirs: Vec<PathBuf>,
     #[arg(
         long,
         env = "SNOWBLOG_ASSET_URL_TEMPLATE",
         default_value = "/api/v1/posts/{slug}/assets/"
     )]
     asset_url_template: String,
+    #[arg(long, env = "SNOWBLOG_MAX_SOURCE_BYTES", default_value_t = 512 * 1024)]
+    max_source_bytes: usize,
+    #[arg(long, env = "SNOWBLOG_MAX_ASSET_BYTES", default_value_t = 5 * 1024 * 1024)]
+    max_asset_bytes: usize,
+    #[arg(long, env = "SNOWBLOG_MAX_HTML_BYTES", default_value_t = 2 * 1024 * 1024)]
+    max_html_bytes: usize,
+    #[arg(long, env = "SNOWBLOG_RENDER_TIMEOUT_SECS", default_value_t = 10)]
+    render_timeout_secs: u64,
 }
 
 impl SharedServiceArgs {
@@ -66,8 +76,13 @@ impl SharedServiceArgs {
         let store = Store::open(&self.database).await?;
         let renderer = Arc::new(Renderer::new(
             self.package_root.clone(),
-            Vec::new(),
-            RenderLimits::default(),
+            self.font_dirs.clone(),
+            RenderLimits {
+                max_source_bytes: self.max_source_bytes,
+                max_asset_bytes: self.max_asset_bytes,
+                max_html_bytes: self.max_html_bytes,
+                timeout: std::time::Duration::from_secs(self.render_timeout_secs),
+            },
         ));
         Ok(BlogService::new(
             store,
