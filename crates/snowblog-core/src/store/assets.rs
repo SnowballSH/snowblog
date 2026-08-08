@@ -78,4 +78,26 @@ impl Store {
         })
         .transpose()
     }
+
+    pub async fn get_assets(&self, slug: &Slug) -> Result<Vec<Asset>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT a.path, a.content, a.content_type, a.content_hash, a.updated_at
+             FROM assets a JOIN posts p ON p.id = a.post_id
+             WHERE p.slug = ? ORDER BY a.path",
+        )
+        .bind(slug.as_str())
+        .fetch_all(self.pool())
+        .await?;
+        rows.iter()
+            .map(|r| {
+                Ok(Asset {
+                    path: r.get("path"),
+                    content: r.get("content"),
+                    content_type: r.get("content_type"),
+                    content_hash: r.get("content_hash"),
+                    updated_at: parse_timestamp(r.get("updated_at"))?,
+                })
+            })
+            .collect()
+    }
 }
