@@ -32,6 +32,14 @@ impl Problem {
         Self::new(StatusCode::NOT_FOUND, "not_found", "resource not found")
     }
 
+    pub fn unauthorized() -> Self {
+        Self::new(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "missing or invalid bearer token",
+        )
+    }
+
     pub fn internal(detail: impl Into<String>) -> Self {
         Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal", detail)
     }

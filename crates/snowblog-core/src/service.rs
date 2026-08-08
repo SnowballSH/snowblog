@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use jiff::Timestamp;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::{Diagnostic, Language, PostStatus, Revision, Slug};
@@ -44,7 +44,7 @@ pub struct TranslationFreshness {
     pub freshness: Freshness,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RerenderScope {
     Stale,
