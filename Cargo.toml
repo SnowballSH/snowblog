@@ -29,4 +29,9 @@ tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.7", features = ["trace", "limit"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+typst = "=0.15.1"
+typst-assets = { version = "=0.15.1", features = ["fonts"] }
+typst-html = "=0.15.1"
+typst-kit = { version = "=0.15.1", default-features = false, features = ["embedded-fonts", "scan-fonts"] }
+typst-syntax = "=0.15.1"
 uuid = { version = "1", features = ["v7", "serde"] }

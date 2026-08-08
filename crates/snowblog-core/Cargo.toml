@@ -16,6 +16,11 @@ sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+typst.workspace = true
+typst-assets.workspace = true
+typst-html.workspace = true
+typst-kit.workspace = true
+typst-syntax.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
