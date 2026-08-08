@@ -1,4 +1,5 @@
 mod config;
+mod etag;
 mod problem;
 mod routes;
 mod state;
@@ -26,7 +27,14 @@ pub async fn build_app(config: Config) -> anyhow::Result<Router> {
     let service = BlogService::new(store, renderer, Some(config.asset_url_template.clone()));
     let state = AppState { service };
 
-    let api = Router::new().route("/health", get(routes::health::health));
+    let api = Router::new()
+        .route("/health", get(routes::health::health))
+        .route("/posts", get(routes::public::list_posts))
+        .route("/posts/{slug}", get(routes::public::get_post))
+        .route(
+            "/posts/{slug}/assets/{*path}",
+            get(routes::public::get_asset),
+        );
 
     let router = Router::new()
         .nest("/api/v1", api)

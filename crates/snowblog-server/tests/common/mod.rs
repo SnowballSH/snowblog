@@ -1,12 +1,16 @@
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, Response, StatusCode, header};
 use http_body_util::BodyExt;
 use serde_json::Value;
+use snowblog_core::render::{RenderLimits, Renderer};
+use snowblog_core::service::BlogService;
+use snowblog_core::store::Store;
 use snowblog_server::{Config, build_app};
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -15,7 +19,27 @@ pub const TEST_TOKEN: &str = "test-token";
 
 pub struct TestApp {
     pub router: Router,
+    config: Config,
     _dir: TempDir,
+}
+
+impl TestApp {
+    pub async fn service(&self) -> BlogService {
+        let store = Store::open(&self.config.database).await.unwrap();
+        let renderer = Arc::new(Renderer::new(
+            self.config.package_root.clone(),
+            Vec::new(),
+            RenderLimits {
+                timeout: std::time::Duration::from_secs(30),
+                ..RenderLimits::default()
+            },
+        ));
+        BlogService::new(
+            store,
+            renderer,
+            Some(self.config.asset_url_template.clone()),
+        )
+    }
 }
 
 pub async fn app_with_admin() -> TestApp {
@@ -44,8 +68,12 @@ async fn build(with_admin: bool) -> TestApp {
         max_html_bytes: 2 * 1024 * 1024,
         render_timeout_secs: 30,
     };
-    let router = build_app(config).await.unwrap();
-    TestApp { router, _dir: dir }
+    let router = build_app(config.clone()).await.unwrap();
+    TestApp {
+        router,
+        config,
+        _dir: dir,
+    }
 }
 
 pub fn package_root() -> PathBuf {

@@ -2787,6 +2787,7 @@ dependencies = [
  "clap",
  "constant_time_eq 0.5.0",
  "http-body-util",
+ "jiff",
  "serde",
  "serde_json",
  "snowblog-core",
