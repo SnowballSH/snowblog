@@ -63,6 +63,19 @@ an abandoned thread finishes in the background and its result is discarded.
 4. Failed renders never overwrite artifacts.
 5. Hard delete only; no history tables.
 
+## Migration record (2026-08-07)
+
+`snowblog import` against the SnowballSH portfolio blog directory (11 `.typ`
+files) imported 8 posts — all published, none blocked: `abc_457`, `arc_224`,
+`birthday_2026` (en+zh), `college_year_1` (3 assets),
+`fifth_grader_set_theory` (en+zh), `first_blog` (en+zh), `fun_integral_1`,
+`imo_2026` (cetz → inline SVG). `.zh.typ` files import as `zh` translations
+of their base post; their standalone `hidden: true` flags (an Astro-era
+artifact) are ignored, and commented-out flags are ignored by the AST-based
+frontmatter parser. Adaptations applied: `#set page` stripped, cetz canvases
+wrapped in `html.frame`. Verified over HTTP: health, list order, per-language
+detail, asset serving, admin 404 without a token file.
+
 ## API
 
 Versioned REST JSON under `/api/v1`; errors are RFC 9457
