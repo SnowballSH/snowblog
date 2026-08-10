@@ -12,7 +12,7 @@ and crawlers see full HTML.
 | `SNOWBLOG_API_URL`        | yes           | —               | Base URL of the snowblog API, used server-side.                                             |
 | `ORIGIN`                  | in production | —               | Public origin (`https://blog.example.com`), used by adapter-node and for canonical/OG URLs. |
 | `PORT`                    | no            | `3000`          | Listen port of the node server.                                                             |
-| `PUBLIC_SITE_NAME`        | no            | `SnowBlog`      | Site name in the header, titles, and footer.                                                |
+| `PUBLIC_SITE_NAME`        | no            | `Blogs`         | Site name in the hero and brand lockup.                                                     |
 | `PUBLIC_SITE_AUTHOR`      | no            | `SnowballSH`    | Brand prefix in the header; set empty to show only the site name.                           |
 | `PUBLIC_SITE_DESCRIPTION` | no            | portfolio blurb | Hero introduction and meta description.                                                     |
 | `PUBLIC_FOOTER_TEXT`      | no            | site name       | Footer text.                                                                                |

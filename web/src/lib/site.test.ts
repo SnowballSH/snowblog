@@ -11,10 +11,11 @@ afterEach(() => {
 describe('site', () => {
 	it('falls back to generic defaults', () => {
 		expect(site()).toEqual({
-			name: 'SnowBlog',
+			name: 'Blogs',
 			author: 'SnowballSH',
+			brand: 'SnowballSH Blogs',
 			description: 'Personal and Academic Blogs. Maybe Philosophical. Maybe Mathematical. Or both.',
-			footerText: 'SnowBlog'
+			footerText: 'SnowballSH Blogs'
 		});
 	});
 
@@ -26,13 +27,14 @@ describe('site', () => {
 		expect(site()).toEqual({
 			name: 'Snowy Notes',
 			author: '',
+			brand: 'Snowy Notes',
 			description: 'Notes from the snow.',
 			footerText: '© Snowy'
 		});
 	});
 
-	it('falls back footer text to the site name', () => {
+	it('falls back footer text to the brand', () => {
 		process.env.PUBLIC_SITE_NAME = 'Snowy Notes';
-		expect(site().footerText).toBe('Snowy Notes');
+		expect(site().footerText).toBe('SnowballSH Snowy Notes');
 	});
 });
