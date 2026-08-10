@@ -6,7 +6,7 @@ use axum::http::{Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::IntoResponse;
 use axum::response::Response;
-use axum::routing::{MethodFilter, on};
+use axum::routing::any;
 use metrics_exporter_prometheus::{BuildError, Matcher, PrometheusBuilder, PrometheusHandle};
 use snowblog_core::service::BlogService;
 use snowblog_core::store::StoreError;
@@ -43,17 +43,21 @@ pub fn metrics_router(handle: PrometheusHandle) -> Router {
     Router::new()
         .route(
             "/metrics",
-            on(MethodFilter::GET, move || {
+            any(move |method: Method| {
                 let handle = handle.clone();
                 async move {
-                    (
-                        [(
-                            header::CONTENT_TYPE,
-                            "text/plain; version=0.0.4; charset=utf-8",
-                        )],
-                        handle.render(),
-                    )
-                        .into_response()
+                    if method == Method::GET {
+                        (
+                            [(
+                                header::CONTENT_TYPE,
+                                "text/plain; version=0.0.4; charset=utf-8",
+                            )],
+                            handle.render(),
+                        )
+                            .into_response()
+                    } else {
+                        StatusCode::NOT_FOUND.into_response()
+                    }
                 }
             }),
         )

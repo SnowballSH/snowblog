@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,9 +28,13 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         })
         .transpose()?;
     let application = snowblog_server::build_application(args.config).await?;
-    let api_listener = tokio::net::TcpListener::bind(listen).await?;
+    let BoundListeners {
+        api: api_listener,
+        metrics: metrics_listener,
+    } = bind_listeners(listen, metrics.as_ref().map(|(address, _)| *address)).await?;
 
     let Some((metrics_listen, metrics_handle)) = metrics else {
+        debug_assert!(metrics_listener.is_none());
         tracing::info!(%listen, "snowblog listening");
         axum::serve(api_listener, application.into_router())
             .await
@@ -37,7 +42,7 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         anyhow::bail!("API listener terminated unexpectedly");
     };
 
-    let metrics_listener = tokio::net::TcpListener::bind(metrics_listen).await?;
+    let metrics_listener = metrics_listener.expect("configured metrics listener is bound");
     snowblog_server::telemetry::initialize_build_info(application.service()).await?;
     snowblog_server::telemetry::refresh_content_metrics(application.service()).await?;
 
@@ -63,6 +68,23 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             anyhow::bail!("metrics reconciliation terminated unexpectedly");
         }
     }
+}
+
+struct BoundListeners {
+    api: tokio::net::TcpListener,
+    metrics: Option<tokio::net::TcpListener>,
+}
+
+async fn bind_listeners(
+    api_address: SocketAddr,
+    metrics_address: Option<SocketAddr>,
+) -> std::io::Result<BoundListeners> {
+    let api = tokio::net::TcpListener::bind(api_address).await?;
+    let metrics = match metrics_address {
+        Some(address) => Some(tokio::net::TcpListener::bind(address).await?),
+        None => None,
+    };
+    Ok(BoundListeners { api, metrics })
 }
 
 async fn reconcile_content_metrics(service: BlogService) {
@@ -217,4 +239,32 @@ pub async fn rerender(args: RerenderArgs) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bind_listeners;
+
+    // Break caught: serving retains a metrics socket when configuration is
+    // absent, or fails to retain the requested second socket when present.
+    #[tokio::test]
+    async fn listener_binding_owns_exactly_the_configured_sockets() {
+        let disabled = bind_listeners("127.0.0.1:0".parse().unwrap(), None)
+            .await
+            .unwrap();
+        assert!(disabled.api.local_addr().unwrap().ip().is_loopback());
+        assert!(disabled.metrics.is_none());
+
+        let enabled = bind_listeners(
+            "127.0.0.1:0".parse().unwrap(),
+            Some("127.0.0.1:0".parse().unwrap()),
+        )
+        .await
+        .unwrap();
+        let api_address = enabled.api.local_addr().unwrap();
+        let metrics_address = enabled.metrics.unwrap().local_addr().unwrap();
+        assert!(api_address.ip().is_loopback());
+        assert!(metrics_address.ip().is_loopback());
+        assert_ne!(api_address, metrics_address);
+    }
 }

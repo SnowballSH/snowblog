@@ -10,21 +10,17 @@ use tempfile::TempDir;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
 const RETRY_INTERVAL: Duration = Duration::from_millis(25);
 
-// Break caught: disabling metrics still opens a second listener, or the
-// SNOWBLOG_METRICS_LISTEN environment variable no longer starts the private
-// Prometheus listener while keeping /metrics absent from the API listener.
+// Break caught: SNOWBLOG_METRICS_LISTEN no longer starts the private Prometheus
+// listener, or that listener exposes anything beyond GET /metrics while the API
+// router keeps its normal problem+json /metrics fallback.
 #[test]
 fn metrics_listener_is_opt_in_and_private() {
     let temp_dir = TempDir::new().expect("temporary database directory is created");
 
-    let [disabled_api, disabled_candidate] = distinct_loopback_addresses();
+    let disabled_api = unused_loopback_address();
     let disabled = spawn_server(disabled_api, temp_dir.path().join("disabled.db"), None);
     let api_health = wait_for_response(disabled_api, "/api/v1/health");
     assert_eq!(api_health.status, 200);
-    assert!(
-        TcpStream::connect_timeout(&disabled_candidate, Duration::from_millis(100)).is_err(),
-        "metrics-disabled server unexpectedly opened a second listener"
-    );
     drop(disabled);
 
     let [enabled_api, enabled_metrics] = distinct_loopback_addresses();
@@ -45,10 +41,17 @@ fn metrics_listener_is_opt_in_and_private() {
     );
     assert!(initial_metrics.body.contains("snowblog_build_info{"));
     assert!(initial_metrics.body.contains("snowblog_content_posts{"));
-    assert_eq!(
-        wait_for_response(enabled_metrics, "/api/v1/health").status,
-        404
-    );
+    assert_plain_empty_404(wait_for_response(enabled_metrics, "/api/v1/health"));
+    assert_plain_empty_404(wait_for_method_response(
+        HttpMethod::Head,
+        enabled_metrics,
+        "/metrics",
+    ));
+    assert_plain_empty_404(wait_for_method_response(
+        HttpMethod::Post,
+        enabled_metrics,
+        "/metrics",
+    ));
 
     let health = wait_for_response(enabled_api, "/api/v1/health");
     assert_eq!(health.status, 200);
@@ -114,8 +117,19 @@ fn distinct_loopback_addresses() -> [SocketAddr; 2] {
     ]
 }
 
+fn unused_loopback_address() -> SocketAddr {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("ephemeral loopback listener binds")
+        .local_addr()
+        .expect("ephemeral listener has an address")
+}
+
 fn wait_for_response(address: SocketAddr, path: &str) -> HttpResponse {
-    wait_for_body(address, path, |_| true)
+    wait_for_method_response(HttpMethod::Get, address, path)
+}
+
+fn wait_for_method_response(method: HttpMethod, address: SocketAddr, path: &str) -> HttpResponse {
+    wait_for_method_body(method, address, path, |_| true)
 }
 
 fn wait_for_body(
@@ -123,9 +137,18 @@ fn wait_for_body(
     path: &str,
     predicate: impl Fn(&str) -> bool,
 ) -> HttpResponse {
+    wait_for_method_body(HttpMethod::Get, address, path, predicate)
+}
+
+fn wait_for_method_body(
+    method: HttpMethod,
+    address: SocketAddr,
+    path: &str,
+    predicate: impl Fn(&str) -> bool,
+) -> HttpResponse {
     let deadline = Instant::now() + STARTUP_TIMEOUT;
     loop {
-        if let Ok(response) = request(address, path)
+        if let Ok(response) = request(method, address, path)
             && predicate(&response.body)
         {
             return response;
@@ -138,16 +161,40 @@ fn wait_for_body(
     }
 }
 
-fn request(address: SocketAddr, path: &str) -> std::io::Result<HttpResponse> {
+#[derive(Clone, Copy)]
+enum HttpMethod {
+    Get,
+    Head,
+    Post,
+}
+
+impl HttpMethod {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Get => "GET",
+            Self::Head => "HEAD",
+            Self::Post => "POST",
+        }
+    }
+}
+
+fn request(method: HttpMethod, address: SocketAddr, path: &str) -> std::io::Result<HttpResponse> {
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))?;
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     write!(
         stream,
-        "GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+        "{} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n",
+        method.as_str()
     )?;
     let mut bytes = Vec::new();
     stream.read_to_end(&mut bytes)?;
     HttpResponse::parse(&bytes)
+}
+
+fn assert_plain_empty_404(response: HttpResponse) {
+    assert_eq!(response.status, 404);
+    assert!(response.body.is_empty());
+    assert!(!response.headers.contains_key("content-type"));
 }
 
 struct HttpResponse {
