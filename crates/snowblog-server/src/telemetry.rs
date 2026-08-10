@@ -1,3 +1,9 @@
+use std::time::Instant;
+
+use axum::extract::{MatchedPath, Request};
+use axum::http::{Method, StatusCode};
+use axum::middleware::Next;
+use axum::response::Response;
 use metrics_exporter_prometheus::{BuildError, Matcher, PrometheusBuilder, PrometheusHandle};
 
 const HTTP_BUCKETS: [f64; 11] = [
@@ -26,6 +32,78 @@ fn prometheus_builder() -> Result<PrometheusBuilder, BuildError> {
 
 pub fn install_prometheus_recorder() -> anyhow::Result<PrometheusHandle> {
     Ok(prometheus_builder()?.install_recorder()?)
+}
+
+pub async fn record_http_request(request: Request, next: Next) -> Response {
+    let path = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|matched_path| matched_path.as_str().to_owned())
+        .unwrap_or_else(|| "unmatched".to_owned());
+    let method = normalize_method(request.method());
+    let _in_flight = InFlightRequest::new(&path, method);
+    let started_at = Instant::now();
+    let response = next.run(request).await;
+    let status = status_class(response.status());
+
+    metrics::counter!(
+        "snowblog_http_requests_total",
+        "path" => path.clone(),
+        "method" => method,
+        "status" => status,
+    )
+    .increment(1);
+    metrics::histogram!(
+        "snowblog_http_request_duration_seconds",
+        "path" => path,
+        "method" => method,
+        "status" => status,
+    )
+    .record(started_at.elapsed().as_secs_f64());
+
+    response
+}
+
+struct InFlightRequest(metrics::Gauge);
+
+impl InFlightRequest {
+    fn new(path: &str, method: &'static str) -> Self {
+        let gauge = metrics::gauge!(
+            "snowblog_http_requests_in_flight",
+            "path" => path.to_owned(),
+            "method" => method,
+        );
+        gauge.increment(1.0);
+        Self(gauge)
+    }
+}
+
+impl Drop for InFlightRequest {
+    fn drop(&mut self) {
+        self.0.decrement(1.0);
+    }
+}
+
+fn normalize_method(method: &Method) -> &'static str {
+    match *method {
+        Method::GET => "get",
+        Method::POST => "post",
+        Method::PUT => "put",
+        Method::PATCH => "patch",
+        Method::DELETE => "delete",
+        _ => "other",
+    }
+}
+
+fn status_class(status: StatusCode) -> &'static str {
+    match status.as_u16() {
+        100..=199 => "1xx",
+        200..=299 => "2xx",
+        300..=399 => "3xx",
+        400..=499 => "4xx",
+        500..=599 => "5xx",
+        _ => "other",
+    }
 }
 
 #[cfg(test)]

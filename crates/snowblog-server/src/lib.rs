@@ -54,6 +54,7 @@ pub async fn build_app(config: Config) -> anyhow::Result<Router> {
         .nest("/api/v1", api)
         .fallback(async || Problem::not_found())
         .layer(middleware::from_fn(problem::normalize_error_responses))
+        .layer(middleware::from_fn(telemetry::record_http_request))
         .with_state(state);
     Ok(router)
 }
