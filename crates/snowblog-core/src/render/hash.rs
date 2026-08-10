@@ -6,6 +6,8 @@ pub fn input_hash(
     let mut sorted: Vec<&(String, String)> = asset_manifest.iter().collect();
     sorted.sort();
     let mut hasher = blake3::Hasher::new();
+    hasher.update(super::preamble::html_preamble(asset_url_prefix).as_bytes());
+    hasher.update(&[2]);
     hasher.update(source.as_bytes());
     if let Some(prefix) = asset_url_prefix {
         hasher.update(&[1]);
@@ -61,6 +63,14 @@ mod tests {
         assert_ne!(
             input_hash("= A", &manifest(&[("ab", "c")]), None),
             input_hash("= A", &manifest(&[("a", "bc")]), None)
+        );
+    }
+
+    #[test]
+    fn includes_the_preamble() {
+        assert_ne!(
+            input_hash("= A", &[], None),
+            blake3::hash("= A".as_bytes()).to_hex().to_string()
         );
     }
 

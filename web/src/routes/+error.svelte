@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>{page.status} — snowblog</title>
+	<title>{page.status} — Blogs</title>
 </svelte:head>
 
 <div class="mx-auto max-w-[74ch]">

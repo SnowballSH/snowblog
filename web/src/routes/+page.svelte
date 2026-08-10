@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.site?.name ?? 'SnowBlog'}</title>
+	<title>{data.site?.brand ?? 'Blogs'}</title>
 </svelte:head>
 
 <div class="mx-auto flex max-w-[74ch] flex-col gap-4">
@@ -24,7 +24,7 @@
 				class="h-28 w-28 sm:h-35 sm:w-35"
 			/>
 			<h1 class="font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-				{data.site?.name ?? 'SnowBlog'}
+				{data.site?.name ?? 'Blogs'}
 			</h1>
 			<p class="max-w-[46ch] text-lg text-pretty text-ink-secondary">
 				{data.site?.description}

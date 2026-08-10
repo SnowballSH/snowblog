@@ -18,6 +18,12 @@ pub fn html_preamble(asset_url_prefix: Option<&str>) -> String {
         ));
     }
     preamble.push_str(
+        r#"#show math.equation.where(block: true): it => context {
+  if target() == "html" { html.frame(it) } else { it }
+}
+"#,
+    );
+    preamble.push_str(
         r#"#show align: it => context {
   if target() == "html" {
     let side = if it.alignment == center { "center" } else if it.alignment == right { "right" } else if it.alignment == left { "left" } else { none }

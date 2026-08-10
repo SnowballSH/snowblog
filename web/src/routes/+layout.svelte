@@ -50,6 +50,6 @@
 <Footer>
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<span>{data.site.footerText}</span>
-		<Link href="https://github.com/SnowballSH/snowblog" subtle external>Built with snowblog</Link>
+		<Link href="https://github.com/SnowballSH/snowblog" subtle external>Powered by SnowBlog</Link>
 	</div>
 </Footer>

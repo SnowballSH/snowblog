@@ -61,13 +61,33 @@ async fn renders_plain_markup() {
 }
 
 #[tokio::test]
-async fn renders_math_as_mathml() {
+async fn renders_inline_math_as_mathml_inside_paragraph() {
+    let (html, _) = expect_success(
+        renderer()
+            .render(input("A value like $x^2 + 1/n$ stays in the sentence."))
+            .await,
+    );
+    assert!(html.contains("<math"), "no MathML in {html}");
+    let paragraph = html
+        .split("<p>")
+        .nth(1)
+        .and_then(|rest| rest.split("</p>").next())
+        .expect("paragraph present");
+    assert!(
+        paragraph.contains("<math") && paragraph.contains("stays in the sentence."),
+        "inline math left the paragraph: {paragraph}"
+    );
+}
+
+#[tokio::test]
+async fn renders_block_math_as_svg_frame() {
     let (html, _) = expect_success(
         renderer()
             .render(input("$ integral_0^1 x^2 dif x = 1/3 $"))
             .await,
     );
-    assert!(html.contains("<math"), "no MathML in {html}");
+    assert!(html.contains("<svg"), "no SVG frame in {html}");
+    assert!(!html.contains("<math"), "block math still MathML in {html}");
 }
 
 #[tokio::test]

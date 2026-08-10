@@ -15,7 +15,7 @@
 </script>
 
 <svelte:head>
-	<title>{post.title} — {data.site?.name ?? 'snowblog'}</title>
+	<title>{post.title} — {data.site?.brand ?? 'Blogs'}</title>
 	{#if post.description}
 		<meta name="description" content={post.description} />
 		<meta property="og:description" content={post.description} />
