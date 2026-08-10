@@ -19,12 +19,12 @@ fn metrics_listener_is_opt_in_and_validated() {
         "--database",
         "blog.db",
         "--metrics-listen",
-        "127.0.0.1:9101",
+        "127.0.0.1:0",
     ])
     .expect("a valid metrics listener parses");
     assert_eq!(
         configured.config.metrics_listen,
-        Some("127.0.0.1:9101".parse().unwrap())
+        Some("127.0.0.1:0".parse().unwrap())
     );
 
     assert!(

@@ -27,16 +27,36 @@ jobs:
 
       - name: Smoke test
         run: |
-          docker run -d --name smoke -p 127.0.0.1:8090:8080 "${IMAGE}:sha-${GITHUB_SHA}"
+          smoke_name="snowblog-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm -f "${smoke_name}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run -d \
+            --name "${smoke_name}" \
+            --env SNOWBLOG_METRICS_LISTEN=0.0.0.0:9090 \
+            -p 127.0.0.1:18080:8080 \
+            -p 127.0.0.1:19090:9090 \
+            "${IMAGE}:sha-${GITHUB_SHA}"
           for _ in $(seq 30); do
-            if curl -fs http://127.0.0.1:8090/api/v1/health >/dev/null; then break; fi
+            if curl -fs http://127.0.0.1:18080/api/v1/health >/dev/null \
+              && curl -fs http://127.0.0.1:19090/metrics >/dev/null; then
+              break
+            fi
             sleep 1
           done
-          curl -fs http://127.0.0.1:8090/api/v1/health | tee /tmp/health.json
+          curl -fs http://127.0.0.1:18080/api/v1/health | tee /tmp/health.json
           grep -q '"database":"ok"' /tmp/health.json
-          status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/v1/admin/posts)"
+          status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/api/v1/admin/posts)"
           test "${status}" = "404"
-          docker rm -f smoke
+          status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/metrics)"
+          test "${status}" = "404"
+          curl -fsS -D /tmp/metrics-headers.txt \
+            http://127.0.0.1:19090/metrics \
+            -o /tmp/metrics.txt
+          grep -qi '^content-type: text/plain; version=0.0.4; charset=utf-8' /tmp/metrics-headers.txt
+          grep -q '^snowblog_build_info{' /tmp/metrics.txt
+          grep -q '^snowblog_content_posts{' /tmp/metrics.txt
 
       - name: Push
         if: github.event_name != 'pull_request'
