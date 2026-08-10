@@ -14,7 +14,8 @@
 		"format": "prettier --write .",
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run",
-		"icons": "bun scripts/icons.ts"
+		"icons": "bun scripts/icons.ts",
+		"smoke": "bun scripts/smoke.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
