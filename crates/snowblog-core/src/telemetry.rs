@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use crate::store::StoreError;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum StoreOperation {
@@ -121,11 +123,18 @@ impl RenderOutcome {
     }
 }
 
-pub fn record_store(operation: StoreOperation, result: StoreResult, duration: Duration) {
+pub fn record_store<T>(
+    operation: StoreOperation,
+    result: &Result<T, StoreError>,
+    duration: Duration,
+) {
+    let metric_result = result
+        .as_ref()
+        .map_or_else(StoreError::metric_result, |_| StoreResult::Ok);
     metrics::counter!(
         "snowblog_store_operations_total",
         "operation" => operation.as_str(),
-        "result" => result.as_str(),
+        "result" => metric_result.as_str(),
     )
     .increment(1);
     metrics::histogram!(
@@ -133,6 +142,18 @@ pub fn record_store(operation: StoreOperation, result: StoreResult, duration: Du
         "operation" => operation.as_str(),
     )
     .record(duration.as_secs_f64());
+    if let Some(kind) = result
+        .as_ref()
+        .err()
+        .and_then(StoreError::sqlite_contention)
+    {
+        metrics::counter!(
+            "snowblog_sqlite_contention_total",
+            "operation" => operation.as_str(),
+            "kind" => kind.as_str(),
+        )
+        .increment(1);
+    }
 }
 
 pub fn record_render(operation: RenderOperation, outcome: RenderOutcome, duration: Duration) {
