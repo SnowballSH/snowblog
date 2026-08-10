@@ -5,6 +5,7 @@ mod precondition;
 mod problem;
 mod routes;
 mod state;
+pub mod telemetry;
 
 pub use config::Config;
 
@@ -21,7 +22,22 @@ use auth::AdminToken;
 use problem::Problem;
 use state::AppState;
 
-pub async fn build_app(config: Config) -> anyhow::Result<Router> {
+pub struct Application {
+    router: Router,
+    service: BlogService,
+}
+
+impl Application {
+    pub fn service(&self) -> &BlogService {
+        &self.service
+    }
+
+    pub fn into_router(self) -> Router {
+        self.router
+    }
+}
+
+pub async fn build_application(config: Config) -> anyhow::Result<Application> {
     let store = Store::open(&config.database).await?;
     let renderer = Arc::new(Renderer::new(
         config.package_root.clone(),
@@ -29,7 +45,9 @@ pub async fn build_app(config: Config) -> anyhow::Result<Router> {
         config.render_limits(),
     ));
     let service = BlogService::new(store, renderer, Some(config.asset_url_template.clone()));
-    let state = AppState { service };
+    let state = AppState {
+        service: service.clone(),
+    };
 
     let mut api = Router::new()
         .route("/health", get(routes::health::health))
@@ -53,8 +71,13 @@ pub async fn build_app(config: Config) -> anyhow::Result<Router> {
         .nest("/api/v1", api)
         .fallback(async || Problem::not_found())
         .layer(middleware::from_fn(problem::normalize_error_responses))
+        .layer(middleware::from_fn(telemetry::record_http_request))
         .with_state(state);
-    Ok(router)
+    Ok(Application { router, service })
+}
+
+pub async fn build_app(config: Config) -> anyhow::Result<Router> {
+    Ok(build_application(config).await?.into_router())
 }
 
 fn admin_router(

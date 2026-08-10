@@ -9,6 +9,7 @@ repository.workspace = true
 blake3.workspace = true
 bytes.workspace = true
 jiff.workspace = true
+metrics.workspace = true
 oxilangtag.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -21,3 +22,6 @@ typst-html.workspace = true
 typst-kit.workspace = true
 typst-syntax.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+metrics-exporter-prometheus.workspace = true

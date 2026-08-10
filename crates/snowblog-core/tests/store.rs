@@ -1,4 +1,6 @@
 use jiff::Timestamp;
+use metrics::set_default_local_recorder;
+use metrics_exporter_prometheus::PrometheusBuilder;
 use snowblog_core::domain::{Diagnostic, Language, PostStatus, Revision, Slug};
 use snowblog_core::store::{
     AssetInput, NewPost, PostFilter, PostPatch, RenderArtifact, Store, StoreError, TranslationInput,
@@ -65,6 +67,117 @@ async fn create_then_get_round_trips() {
     let fetched = store.get_post(&slug("first_post")).await.unwrap().unwrap();
     assert_eq!(fetched.post.id, created.post.id);
     assert_eq!(fetched.post.created_at, created.post.created_at);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn every_public_store_boundary_records_exactly_once() {
+    let store = Store::in_memory().await.unwrap();
+    let recorder = PrometheusBuilder::new()
+        .set_buckets(&[1.0])
+        .expect("test buckets are non-empty")
+        .build_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+    let post_slug = slug("observed_boundaries");
+
+    let created = store
+        .create_post(new_post(post_slug.as_str()))
+        .await
+        .unwrap();
+    store.get_post(&post_slug).await.unwrap().unwrap();
+    store.list_posts(PostFilter::default()).await.unwrap();
+    store
+        .upsert_translation(&post_slug, Revision(1), translation("zh", "= Observed"))
+        .await
+        .unwrap();
+    store
+        .update_post_meta(&post_slug, Revision(2), PostPatch::default())
+        .await
+        .unwrap();
+    store
+        .set_status(&post_slug, Revision(3), PostStatus::Draft, None)
+        .await
+        .unwrap();
+    store
+        .upsert_asset(
+            &post_slug,
+            Revision(4),
+            asset("private/observed.png", b"observed"),
+        )
+        .await
+        .unwrap();
+    store
+        .get_asset(&post_slug, "private/observed.png")
+        .await
+        .unwrap()
+        .unwrap();
+    store.get_assets(&post_slug).await.unwrap();
+    assert!(
+        store
+            .replace_render(
+                &created.post.id,
+                &lang("zh"),
+                Revision(5),
+                artifact("<p>observed</p>"),
+            )
+            .await
+            .unwrap()
+    );
+    store
+        .delete_asset(&post_slug, Revision(5), "private/observed.png")
+        .await
+        .unwrap();
+    store
+        .delete_translation(&post_slug, Revision(6), &lang("zh"))
+        .await
+        .unwrap();
+    store.delete_post(&post_slug, Revision(7)).await.unwrap();
+
+    let exposition = handle.render();
+    for operation in [
+        "get_post",
+        "list_posts",
+        "create_post",
+        "update_post_meta",
+        "set_status",
+        "delete_post",
+        "save_translation",
+        "delete_translation",
+        "save_asset",
+        "delete_asset",
+        "get_asset",
+        "get_assets",
+        "replace_render",
+    ] {
+        assert_eq!(
+            metric_sample(
+                &exposition,
+                "snowblog_store_operations_total",
+                &[("operation", operation), ("result", "ok")],
+            ),
+            1.0,
+            "unexpected operation count for {operation}"
+        );
+        assert_eq!(
+            metric_sample(
+                &exposition,
+                "snowblog_store_operation_duration_seconds_count",
+                &[("operation", operation)],
+            ),
+            1.0,
+            "unexpected duration count for {operation}"
+        );
+    }
+    assert!(
+        !exposition
+            .lines()
+            .any(|line| line.starts_with("snowblog_store_operations_total")
+                && line.contains("result=\"error\"")),
+        "successful store calls emitted an error result"
+    );
+    for forbidden in ["observed_boundaries", "private/observed.png", "Observed"] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
 }
 
 #[tokio::test]
@@ -431,4 +544,21 @@ async fn publish_sets_published_at_only_if_unset() {
         .await
         .unwrap();
     assert_eq!(republished.post.published_at, Some(first));
+}
+
+fn metric_sample(exposition: &str, family: &str, labels: &[(&str, &str)]) -> f64 {
+    let line = exposition
+        .lines()
+        .filter(|line| line.starts_with(family))
+        .find(|line| {
+            labels
+                .iter()
+                .all(|(name, value)| line.contains(&format!("{name}=\"{value}\"")))
+        })
+        .unwrap_or_else(|| panic!("missing {family} sample for {labels:?}"));
+    line.rsplit_once(' ')
+        .expect("Prometheus sample has a value")
+        .1
+        .parse()
+        .expect("Prometheus sample value is numeric")
 }

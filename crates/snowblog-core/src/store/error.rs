@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::domain::{Revision, Slug};
+use crate::telemetry::{SqliteContention, StoreResult};
 
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -19,4 +20,19 @@ pub enum StoreError {
     Constraint(String),
     #[error("database error: {0}")]
     Db(#[from] sqlx::Error),
+}
+
+impl StoreError {
+    pub const fn metric_result(&self) -> StoreResult {
+        StoreResult::Error
+    }
+
+    pub fn sqlite_contention(&self) -> Option<SqliteContention> {
+        let code = match self {
+            Self::Db(error) => error.as_database_error()?.code()?,
+            _ => return None,
+        };
+        let extended_code = code.parse::<u32>().ok()?;
+        SqliteContention::from_primary_code(extended_code & 0xff)
+    }
 }

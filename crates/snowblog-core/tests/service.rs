@@ -1,12 +1,15 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use metrics::set_default_local_recorder;
+use metrics_exporter_prometheus::PrometheusBuilder;
 use snowblog_core::domain::{Language, PostStatus, Revision, Slug};
 use snowblog_core::render::{RenderLimits, RenderOutcome, Renderer};
 use snowblog_core::service::{
     BlogService, Freshness, RenderStatus, RerenderOutcome, RerenderScope, ServiceError,
 };
-use snowblog_core::store::{AssetInput, NewPost, Store, TranslationInput};
+use snowblog_core::store::{AssetInput, NewPost, Store, StoreError, TranslationInput};
 
 fn slug(s: &str) -> Slug {
     Slug::parse(s).unwrap()
@@ -336,4 +339,392 @@ async fn slug_rename_marks_renders_stale() {
         Freshness::Stale,
         "renders bake the slug into asset URLs, so a rename must read as stale"
     );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn preview_render_metrics_record_success_and_failure_without_private_values() {
+    let service = service().await;
+    let post_slug = draft(&service, "private_preview_slug").await;
+    service
+        .store()
+        .upsert_asset(
+            &post_slug,
+            Revision(1),
+            AssetInput {
+                path: "assets/private_asset_filename.png".into(),
+                content: png(),
+                content_type: "image/png".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let recorder = test_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+
+    let success = service
+        .preview(
+            &post_slug,
+            "private_preview_source #image(\"assets/private_asset_filename.png\")".into(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(success, RenderOutcome::Success { .. }));
+    let failure = service
+        .preview(
+            &post_slug,
+            "#image(\"assets/private_diagnostic_filename.png\")".into(),
+        )
+        .await
+        .unwrap();
+    match failure {
+        RenderOutcome::Failure { diagnostics } => assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("private_diagnostic_filename.png")
+        })),
+        RenderOutcome::Success { .. } => panic!("missing private asset unexpectedly rendered"),
+    }
+
+    let exposition = handle.render();
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_attempts_total",
+        &[
+            (
+                labels(&[("operation", "preview"), ("outcome", "success")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "preview"), ("outcome", "failure")]),
+                1.0,
+            ),
+        ],
+    );
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_duration_seconds_count",
+        &[
+            (
+                labels(&[("operation", "preview"), ("result", "success")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "preview"), ("result", "failure")]),
+                1.0,
+            ),
+        ],
+    );
+    for forbidden in [
+        "private_preview_slug",
+        "private_preview_source",
+        "private_asset_filename.png",
+        "private_diagnostic_filename.png",
+    ] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn persisted_render_metrics_record_success_and_failure_without_private_values() {
+    let service = service().await;
+    let post_slug = draft(&service, "private_persisted_slug").await;
+    let recorder = test_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+
+    let success = service
+        .save_translation(
+            &post_slug,
+            Revision(1),
+            translation("en", "= private_persisted_source"),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(success.renders[0].render, RenderStatus::Ok { .. }));
+    let failure = service
+        .save_translation(
+            &post_slug,
+            Revision(2),
+            translation("en", "#image(\"assets/private_persisted_diagnostic.png\")"),
+        )
+        .await
+        .unwrap();
+    match &failure.renders[0].render {
+        RenderStatus::Failed { diagnostics } => assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("private_persisted_diagnostic.png")
+        })),
+        RenderStatus::Ok { .. } => panic!("missing private asset unexpectedly rendered"),
+    }
+
+    let exposition = handle.render();
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_attempts_total",
+        &[
+            (
+                labels(&[("operation", "persisted"), ("outcome", "success")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("outcome", "failure")]),
+                1.0,
+            ),
+        ],
+    );
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_duration_seconds_count",
+        &[
+            (
+                labels(&[("operation", "persisted"), ("result", "success")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("result", "failure")]),
+                1.0,
+            ),
+        ],
+    );
+    for forbidden in [
+        "private_persisted_slug",
+        "private_persisted_source",
+        "private_persisted_diagnostic.png",
+    ] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn successful_render_with_store_error_keeps_duration_without_attempt_outcome() {
+    let service = service().await;
+    let post_slug = draft(&service, "private_store_error_slug").await;
+    sqlx::query(
+        "CREATE TRIGGER private_render_failure
+         BEFORE INSERT ON renders
+         BEGIN
+             SELECT RAISE(ABORT, 'private render persistence error');
+         END",
+    )
+    .execute(service.store().pool())
+    .await
+    .unwrap();
+    let recorder = test_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+
+    let result = service
+        .save_translation(
+            &post_slug,
+            Revision(1),
+            translation("en", "= private_store_error_source"),
+        )
+        .await;
+    match result {
+        Err(ServiceError::Store(StoreError::Db(error))) => assert!(
+            error
+                .to_string()
+                .contains("private render persistence error")
+        ),
+        other => panic!("expected render persistence database error, got {other:?}"),
+    }
+    let record = service.store().get_post(&post_slug).await.unwrap().unwrap();
+    assert_eq!(record.post.revision, Revision(2));
+    assert!(record.translation(&lang("en")).is_some());
+    assert!(record.render(&lang("en")).is_none());
+
+    let exposition = handle.render();
+    assert_metric_samples(&exposition, "snowblog_render_attempts_total", &[]);
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_duration_seconds_count",
+        &[(
+            labels(&[("operation", "persisted"), ("result", "success")]),
+            1.0,
+        )],
+    );
+    for forbidden in [
+        "private_store_error_slug",
+        "private_store_error_source",
+        "private render persistence error",
+        "private_render_failure",
+    ] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn stale_rerender_skips_fresh_posts_without_emitting_extra_metrics() {
+    let service = service().await;
+    let fresh_slug = draft(&service, "private_fresh_rerender_slug").await;
+    service
+        .save_translation(
+            &fresh_slug,
+            Revision(1),
+            translation("en", "= private_fresh_rerender_source"),
+        )
+        .await
+        .unwrap();
+    let stale_slug = draft(&service, "private_stale_rerender_slug").await;
+    service
+        .save_translation(&stale_slug, Revision(1), translation("en", "= Initial"))
+        .await
+        .unwrap();
+    service
+        .store()
+        .upsert_translation(
+            &stale_slug,
+            Revision(2),
+            translation("en", "= private_stale_rerender_source"),
+        )
+        .await
+        .unwrap();
+    let recorder = test_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+
+    let reports = service.rerender(RerenderScope::Stale).await.unwrap();
+    assert_eq!(reports.len(), 2);
+    let outcome_for = |post_slug: &Slug| {
+        reports
+            .iter()
+            .find(|report| &report.slug == post_slug)
+            .unwrap()
+            .outcome
+            .clone()
+    };
+    assert_eq!(outcome_for(&fresh_slug), RerenderOutcome::SkippedFresh);
+    assert_eq!(outcome_for(&stale_slug), RerenderOutcome::Rerendered);
+
+    let exposition = handle.render();
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_attempts_total",
+        &[(
+            labels(&[("operation", "rerender"), ("outcome", "success")]),
+            1.0,
+        )],
+    );
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_duration_seconds_count",
+        &[(
+            labels(&[("operation", "rerender"), ("result", "success")]),
+            1.0,
+        )],
+    );
+    for forbidden in [
+        "private_fresh_rerender_slug",
+        "private_fresh_rerender_source",
+        "private_stale_rerender_slug",
+        "private_stale_rerender_source",
+    ] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn asset_save_and_delete_use_persisted_render_operation() {
+    let service = service().await;
+    let post_slug = draft(&service, "private_asset_routing_slug").await;
+    service
+        .save_translation(
+            &post_slug,
+            Revision(1),
+            translation("en", "= Asset routing"),
+        )
+        .await
+        .unwrap();
+    let recorder = test_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+    let asset_path = "assets/private_persisted_routing.png";
+
+    service
+        .save_asset(
+            &post_slug,
+            Revision(2),
+            AssetInput {
+                path: asset_path.into(),
+                content: png(),
+                content_type: "image/png".into(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_metric_samples(
+        &handle.render(),
+        "snowblog_render_attempts_total",
+        &[(
+            labels(&[("operation", "persisted"), ("outcome", "success")]),
+            1.0,
+        )],
+    );
+
+    service
+        .delete_asset(&post_slug, Revision(3), asset_path)
+        .await
+        .unwrap();
+    let exposition = handle.render();
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_attempts_total",
+        &[(
+            labels(&[("operation", "persisted"), ("outcome", "success")]),
+            2.0,
+        )],
+    );
+    assert_metric_samples(
+        &exposition,
+        "snowblog_render_duration_seconds_count",
+        &[(
+            labels(&[("operation", "persisted"), ("result", "success")]),
+            2.0,
+        )],
+    );
+    for forbidden in [
+        "private_asset_routing_slug",
+        "private_persisted_routing.png",
+    ] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
+}
+
+fn test_recorder() -> metrics_exporter_prometheus::PrometheusRecorder {
+    PrometheusBuilder::new()
+        .set_buckets(&[1.0])
+        .expect("test buckets are non-empty")
+        .build_recorder()
+}
+
+type Labels = BTreeSet<(String, String)>;
+
+fn assert_metric_samples(exposition: &str, family: &str, expected: &[(Labels, f64)]) {
+    let actual = exposition
+        .lines()
+        .filter_map(|line| {
+            let labeled_sample = line.strip_prefix(&format!("{family}{{"))?;
+            let (serialized_labels, value) = labeled_sample.split_once("} ")?;
+            let labels = serialized_labels
+                .split(',')
+                .map(|label| {
+                    let (name, quoted_value) = label.split_once('=')?;
+                    let value = quoted_value.strip_prefix('"')?.strip_suffix('"')?;
+                    Some((name.to_owned(), value.to_owned()))
+                })
+                .collect::<Option<Labels>>()?;
+            Some((labels, value.parse::<f64>().ok()?))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let expected = expected.iter().cloned().collect::<BTreeMap<_, _>>();
+    assert_eq!(actual, expected, "wrong {family} samples");
+}
+
+fn labels(values: &[(&str, &str)]) -> Labels {
+    values
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect()
 }

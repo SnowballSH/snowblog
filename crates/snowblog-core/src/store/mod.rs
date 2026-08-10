@@ -13,16 +13,25 @@ pub use types::{
 
 use std::path::Path;
 use std::str::FromStr;
+use std::time::Instant;
 
 use jiff::Timestamp;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 
 use crate::domain::{Diagnostic, Language, PostId, PostStatus, Revision, Slug};
+use crate::telemetry::{StoreOperation, record_store};
 
 #[derive(Clone)]
 pub struct Store {
     pool: SqlitePool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ContentCounts {
+    pub draft: u64,
+    pub published: u64,
+    pub archived: u64,
 }
 
 impl Store {
@@ -62,37 +71,74 @@ impl Store {
         &self.pool
     }
 
+    pub async fn content_counts(&self) -> Result<ContentCounts, StoreError> {
+        let row = sqlx::query(
+            "SELECT
+                 COALESCE(SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END), 0) AS draft,
+                 COALESCE(SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END), 0) AS published,
+                 COALESCE(SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END), 0) AS archived
+             FROM posts",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(ContentCounts {
+            draft: row.get::<i64, _>("draft") as u64,
+            published: row.get::<i64, _>("published") as u64,
+            archived: row.get::<i64, _>("archived") as u64,
+        })
+    }
+
+    pub async fn schema_version(&self) -> Result<i64, StoreError> {
+        Ok(sqlx::query_scalar(
+            "SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations WHERE success = TRUE",
+        )
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
     pub async fn get_post(&self, slug: &Slug) -> Result<Option<PostRecord>, StoreError> {
-        let row = sqlx::query("SELECT * FROM posts WHERE slug = ?")
-            .bind(slug.as_str())
-            .fetch_optional(&self.pool)
-            .await?;
-        match row {
-            Some(row) => Ok(Some(self.load_record(&row).await?)),
-            None => Ok(None),
+        let started = Instant::now();
+        let result = async {
+            let row = sqlx::query("SELECT * FROM posts WHERE slug = ?")
+                .bind(slug.as_str())
+                .fetch_optional(&self.pool)
+                .await?;
+            match row {
+                Some(row) => Ok(Some(self.load_record(&row).await?)),
+                None => Ok(None),
+            }
         }
+        .await;
+        record_store(StoreOperation::GetPost, &result, started.elapsed());
+        result
     }
 
     pub async fn list_posts(&self, filter: PostFilter) -> Result<Vec<PostRecord>, StoreError> {
-        let rows = sqlx::query(
-            "SELECT DISTINCT p.* FROM posts p
-             LEFT JOIN post_tags t ON t.post_id = p.id
-             WHERE (?1 IS NULL OR p.status = ?1)
-               AND (?2 IS NULL OR t.tag = ?2)
-             ORDER BY p.published_at IS NULL, p.published_at DESC, p.created_at DESC
-             LIMIT ?3 OFFSET ?4",
-        )
-        .bind(filter.status.map(PostStatus::as_str))
-        .bind(filter.tag.as_deref())
-        .bind(filter.limit)
-        .bind(filter.offset)
-        .fetch_all(&self.pool)
-        .await?;
-        let mut records = Vec::with_capacity(rows.len());
-        for row in &rows {
-            records.push(self.load_record(row).await?);
+        let started = Instant::now();
+        let result = async {
+            let rows = sqlx::query(
+                "SELECT DISTINCT p.* FROM posts p
+                 LEFT JOIN post_tags t ON t.post_id = p.id
+                 WHERE (?1 IS NULL OR p.status = ?1)
+                   AND (?2 IS NULL OR t.tag = ?2)
+                 ORDER BY p.published_at IS NULL, p.published_at DESC, p.created_at DESC
+                 LIMIT ?3 OFFSET ?4",
+            )
+            .bind(filter.status.map(PostStatus::as_str))
+            .bind(filter.tag.as_deref())
+            .bind(filter.limit)
+            .bind(filter.offset)
+            .fetch_all(&self.pool)
+            .await?;
+            let mut records = Vec::with_capacity(rows.len());
+            for row in &rows {
+                records.push(self.load_record(row).await?);
+            }
+            Ok(records)
         }
-        Ok(records)
+        .await;
+        record_store(StoreOperation::ListPosts, &result, started.elapsed());
+        result
     }
 
     async fn load_record(&self, row: &sqlx::sqlite::SqliteRow) -> Result<PostRecord, StoreError> {
