@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge, Divider, Link, Prose } from 'foundationui/svelte';
 	import { formatDate } from '$lib/format.js';
+	import { languageLabel } from '$lib/language.js';
 
 	let { data } = $props();
 
@@ -44,9 +45,9 @@
 			<nav aria-label="Translations" class="flex flex-wrap items-center gap-3 text-sm">
 				{#each switcher as alt (alt.lang)}
 					{#if alt.current}
-						<span class="font-medium text-ink">{alt.lang}</span>
+						<span lang={alt.lang} class="font-medium text-ink">{languageLabel(alt.lang)}</span>
 					{:else}
-						<Link href={alt.href} subtle>{alt.lang}</Link>
+						<Link href={alt.href} subtle lang={alt.lang}>{languageLabel(alt.lang)}</Link>
 					{/if}
 				{/each}
 			</nav>
