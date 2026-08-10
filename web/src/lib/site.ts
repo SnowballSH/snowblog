@@ -5,10 +5,12 @@ export interface SiteConfig {
 }
 
 export function site(): SiteConfig {
-	const name = process.env.PUBLIC_SITE_NAME || 'snowblog';
+	const name = process.env.PUBLIC_SITE_NAME || 'SnowBlog';
 	return {
 		name,
-		description: process.env.PUBLIC_SITE_DESCRIPTION || 'A blog rendered from Typst by snowblog.',
+		description:
+			process.env.PUBLIC_SITE_DESCRIPTION ||
+			'A blog written in Typst and rendered to fast, clean pages.',
 		footerText: process.env.PUBLIC_FOOTER_TEXT || name
 	};
 }

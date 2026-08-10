@@ -10,9 +10,9 @@ afterEach(() => {
 describe('site', () => {
 	it('falls back to generic defaults', () => {
 		expect(site()).toEqual({
-			name: 'snowblog',
-			description: 'A blog rendered from Typst by snowblog.',
-			footerText: 'snowblog'
+			name: 'SnowBlog',
+			description: 'A blog written in Typst and rendered to fast, clean pages.',
+			footerText: 'SnowBlog'
 		});
 	});
 

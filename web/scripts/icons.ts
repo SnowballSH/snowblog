@@ -35,6 +35,8 @@ for (const [name, pending] of outputs) {
 	console.log(`wrote static/${name}`);
 }
 
-const ico = await pngToIco(await sharp(SOURCE).resize(48, 48).png().toBuffer());
+const ico = await pngToIco(
+	await sharp(SOURCE).resize(48, 48).png({ compressionLevel: 9, palette: true }).toBuffer()
+);
 await writeFile(`${STATIC_DIR}favicon.ico`, ico);
 console.log('wrote static/favicon.ico');

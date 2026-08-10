@@ -9,10 +9,29 @@
 </script>
 
 <svelte:head>
-	<title>{data.site?.name ?? 'snowblog'}</title>
+	<title>{data.site?.name ?? 'SnowBlog'}</title>
 </svelte:head>
 
 <div class="mx-auto flex max-w-[74ch] flex-col gap-4">
+	{#if data.page === 1}
+		<section class="flex flex-col items-center gap-4 py-8 text-center sm:py-12">
+			<img
+				src="/mascot.webp"
+				alt=""
+				width="140"
+				height="140"
+				decoding="async"
+				class="h-28 w-28 sm:h-35 sm:w-35"
+			/>
+			<h1 class="font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+				{data.site?.name ?? 'SnowBlog'}
+			</h1>
+			<p class="max-w-[46ch] text-lg text-pretty text-ink-secondary">
+				{data.site?.description}
+			</p>
+		</section>
+	{/if}
+
 	{#each data.posts as post (post.id)}
 		<Panel>
 			<article class="flex flex-col gap-2">
