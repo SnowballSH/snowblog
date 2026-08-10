@@ -26,6 +26,7 @@ jobs:
             -t "${IMAGE}:sha-${GITHUB_SHA}" .
 
       - name: Smoke test
+        shell: bash
         run: |
           smoke_name="snowblog-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           cleanup() {
