@@ -5,6 +5,7 @@ mod precondition;
 mod problem;
 mod routes;
 mod state;
+pub mod telemetry;
 
 pub use config::Config;
 
