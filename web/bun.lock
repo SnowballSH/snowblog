@@ -5,7 +5,7 @@
     "": {
       "name": "web",
       "dependencies": {
-        "foundationui": "https://github.com/SnowballSH/foundationui/releases/download/v0.5.1/foundationui-0.5.1.tgz",
+        "foundationui": "https://github.com/SnowballSH/foundationui/releases/download/v0.5.2/foundationui-0.5.2.tgz",
       },
       "devDependencies": {
         "@eslint/js": "^10.0.1",
@@ -418,7 +418,7 @@
 
     "flatted": ["flatted@3.4.4", "", {}, "sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q=="],
 
-    "foundationui": ["foundationui@https://github.com/SnowballSH/foundationui/releases/download/v0.5.1/foundationui-0.5.1.tgz", { "dependencies": { "class-variance-authority": "^0.7.1" }, "peerDependencies": { "react": "^19.2.8", "react-dom": "^19.2.8", "svelte": "^5.56.8" }, "optionalPeers": ["react", "react-dom", "svelte"] }, "sha512-amRQt39NvLT4Kr9XZdwXfci3/igB4jqjyHSlec06mSSqY3egmoHEBz9cBs37PDLXMPTpatjG2TwnLBhvrAx8xA=="],
+    "foundationui": ["foundationui@https://github.com/SnowballSH/foundationui/releases/download/v0.5.2/foundationui-0.5.2.tgz", { "dependencies": { "class-variance-authority": "^0.7.1" }, "peerDependencies": { "react": "^19.2.8", "react-dom": "^19.2.8", "svelte": "^5.56.8" }, "optionalPeers": ["react", "react-dom", "svelte"] }, "sha512-4JFqlnb1myBiisgDi1mf87nZOdD3Kuh0C598WI8+xgq52C22wFLjuNexcGOQmiWA5H6Hg0XYUEND3GmpBCfeSg=="],
 
     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
 
