@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
+use anyhow::Context;
 use clap::{Args, Subcommand};
 use snowblog_core::import::{SourceAdaptation, import_dir};
 use snowblog_core::render::{RenderLimits, Renderer};
@@ -16,11 +18,63 @@ pub struct ServeArgs {
 
 pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     let listen = args.config.listen;
-    let app = snowblog_server::build_app(args.config).await?;
-    let listener = tokio::net::TcpListener::bind(listen).await?;
+    let metrics = args
+        .config
+        .metrics_listen
+        .map(|address| {
+            snowblog_server::telemetry::install_prometheus_recorder()
+                .map(|handle| (address, handle))
+        })
+        .transpose()?;
+    let application = snowblog_server::build_application(args.config).await?;
+    let api_listener = tokio::net::TcpListener::bind(listen).await?;
+
+    let Some((metrics_listen, metrics_handle)) = metrics else {
+        tracing::info!(%listen, "snowblog listening");
+        axum::serve(api_listener, application.into_router())
+            .await
+            .context("API listener failed")?;
+        anyhow::bail!("API listener terminated unexpectedly");
+    };
+
+    let metrics_listener = tokio::net::TcpListener::bind(metrics_listen).await?;
+    snowblog_server::telemetry::initialize_build_info(application.service()).await?;
+    snowblog_server::telemetry::refresh_content_metrics(application.service()).await?;
+
+    let service = application.service().clone();
+    let api = axum::serve(api_listener, application.into_router());
+    let metrics = axum::serve(
+        metrics_listener,
+        snowblog_server::telemetry::metrics_router(metrics_handle),
+    );
     tracing::info!(%listen, "snowblog listening");
-    axum::serve(listener, app).await?;
-    Ok(())
+    tracing::info!(%metrics_listen, "snowblog metrics listening");
+
+    tokio::select! {
+        result = api => {
+            result.context("API listener failed")?;
+            anyhow::bail!("API listener terminated unexpectedly");
+        }
+        result = metrics => {
+            result.context("metrics listener failed")?;
+            anyhow::bail!("metrics listener terminated unexpectedly");
+        }
+        () = reconcile_content_metrics(service) => {
+            anyhow::bail!("metrics reconciliation terminated unexpectedly");
+        }
+    }
+}
+
+async fn reconcile_content_metrics(service: BlogService) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(60)).await;
+        if snowblog_server::telemetry::refresh_content_metrics(&service)
+            .await
+            .is_err()
+        {
+            tracing::warn!("content metrics refresh failed");
+        }
+    }
 }
 
 #[derive(Args)]

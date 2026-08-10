@@ -1,9 +1,12 @@
 use std::time::Instant;
 
+use axum::Router;
 use axum::extract::{MatchedPath, Request};
-use axum::http::{Method, StatusCode};
+use axum::http::{Method, StatusCode, header};
 use axum::middleware::Next;
+use axum::response::IntoResponse;
 use axum::response::Response;
+use axum::routing::{MethodFilter, on};
 use metrics_exporter_prometheus::{BuildError, Matcher, PrometheusBuilder, PrometheusHandle};
 use snowblog_core::service::BlogService;
 use snowblog_core::store::StoreError;
@@ -34,6 +37,27 @@ fn prometheus_builder() -> Result<PrometheusBuilder, BuildError> {
 
 pub fn install_prometheus_recorder() -> anyhow::Result<PrometheusHandle> {
     Ok(prometheus_builder()?.install_recorder()?)
+}
+
+pub fn metrics_router(handle: PrometheusHandle) -> Router {
+    Router::new()
+        .route(
+            "/metrics",
+            on(MethodFilter::GET, move || {
+                let handle = handle.clone();
+                async move {
+                    (
+                        [(
+                            header::CONTENT_TYPE,
+                            "text/plain; version=0.0.4; charset=utf-8",
+                        )],
+                        handle.render(),
+                    )
+                        .into_response()
+                }
+            }),
+        )
+        .fallback(async || StatusCode::NOT_FOUND)
 }
 
 pub async fn initialize_build_info(service: &BlogService) -> Result<(), StoreError> {
