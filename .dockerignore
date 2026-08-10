@@ -5,3 +5,6 @@ docs
 README.md
 AGENTS.md
 LICENSE-*
+web/node_modules
+web/.svelte-kit
+web/build
