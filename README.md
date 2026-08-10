@@ -76,3 +76,19 @@ wildcard bind inside its own network namespace, but the published host socket
 must still remain private.
 
 See `docs/architecture.md` for the rendering pipeline, invariants, and API.
+
+## Web frontend
+
+`web/` contains snowblog-web, a SvelteKit SSR frontend for the public API,
+built on [Foundation UI](https://github.com/SnowballSH/foundationui). It
+serves the post list, post pages with translations, a sitemap, and robots.txt.
+
+```sh
+cd web
+bun install
+SNOWBLOG_API_URL=http://127.0.0.1:8080 bun run dev
+```
+
+`bun run build` produces an adapter-node server (`node build`);
+`Containerfile.web` packages it. See `web/README.md` for configuration and
+the single-origin deployment contract.

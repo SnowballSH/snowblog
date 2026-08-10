@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<script>
+			let theme = 'light';
+			try {
+				const stored = localStorage.getItem('fui-theme');
+				theme =
+					stored === 'light' || stored === 'dark'
+						? stored
+						: matchMedia('(prefers-color-scheme: dark)').matches
+							? 'dark'
+							: 'light';
+			} catch {}
+			document.documentElement.dataset.theme = theme;
+		</script>
+		%sveltekit.head%
+	</head>
+	<body
+		data-sveltekit-preload-data="hover"
+		class="flex min-h-svh flex-col bg-surface font-sans text-ink antialiased"
+	>
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>
