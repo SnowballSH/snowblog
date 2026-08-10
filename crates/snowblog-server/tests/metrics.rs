@@ -1,6 +1,6 @@
 mod common;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use axum::Router;
@@ -8,13 +8,13 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode, header};
 use axum::middleware;
 use axum::routing::get as route_get;
-use common::{app_with_admin, get, send_raw};
+use common::{TEST_TOKEN, app_with_admin, get, send_raw};
 use snowblog_server::telemetry::install_prometheus_recorder;
 use tokio::sync::Barrier;
 use tower::ServiceExt;
 
-// Break caught: omitting HTTP instrumentation, recording raw request data, or
-// classifying requests with unbounded labels.
+// Break caught: changing the stable HTTP metric vocabulary, including route
+// fallback canonicalization, bounded method/status normalization, or labels.
 #[tokio::test(flavor = "current_thread")]
 async fn http_metrics_use_normalized_routes_and_bounded_labels() {
     let handle = install_prometheus_recorder().expect("the test installs one recorder");
@@ -28,6 +28,46 @@ async fn http_metrics_use_normalized_routes_and_bounded_labels() {
         send_raw(&app, get("/api/v1/posts/private-slug"))
             .await
             .status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send_raw(
+            &app,
+            Request::builder()
+                .method(Method::HEAD)
+                .uri("/api/v1/health")
+                .body(Body::empty())
+                .expect("the request is valid"),
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        send_raw(
+            &app,
+            Request::builder()
+                .method(Method::OPTIONS)
+                .uri("/api/v1/health")
+                .body(Body::empty())
+                .expect("the request is valid"),
+        )
+        .await
+        .status(),
+        StatusCode::METHOD_NOT_ALLOWED
+    );
+    assert_eq!(
+        send_raw(
+            &app,
+            Request::builder()
+                .method(Method::GET)
+                .uri("/api/v1/admin/private-admin-path?token=admin-secret")
+                .header(header::AUTHORIZATION, format!("Bearer {TEST_TOKEN}"))
+                .body(Body::empty())
+                .expect("the request is valid"),
+        )
+        .await
+        .status(),
         StatusCode::NOT_FOUND
     );
     assert_eq!(
@@ -65,50 +105,98 @@ async fn http_metrics_use_normalized_routes_and_bounded_labels() {
     );
 
     let exposition = handle.render();
-    for (path, method, status) in [
-        ("/api/v1/health", "get", "2xx"),
-        ("/api/v1/posts/{slug}", "get", "4xx"),
-        ("/api/v1/admin/posts", "post", "4xx"),
-        ("unmatched", "other", "4xx"),
-    ] {
-        assert_sample(
-            &exposition,
-            "snowblog_http_requests_total",
-            &[("path", path), ("method", method), ("status", status)],
+    let app_samples = vec![
+        (
+            labels(&[
+                ("route", "/api/v1/health"),
+                ("method", "get"),
+                ("status", "2xx"),
+            ]),
             1.0,
-        );
-        assert_sample(
-            &exposition,
-            "snowblog_http_request_duration_seconds_count",
-            &[("path", path), ("method", method), ("status", status)],
+        ),
+        (
+            labels(&[
+                ("route", "/api/v1/health"),
+                ("method", "head"),
+                ("status", "2xx"),
+            ]),
             1.0,
-        );
-    }
-    assert_sample(
+        ),
+        (
+            labels(&[
+                ("route", "/api/v1/health"),
+                ("method", "options"),
+                ("status", "4xx"),
+            ]),
+            1.0,
+        ),
+        (
+            labels(&[
+                ("route", "/api/v1/posts/{slug}"),
+                ("method", "get"),
+                ("status", "4xx"),
+            ]),
+            1.0,
+        ),
+        (
+            labels(&[
+                ("route", "/api/v1/admin/posts"),
+                ("method", "post"),
+                ("status", "4xx"),
+            ]),
+            1.0,
+        ),
+        (
+            labels(&[("route", "unmatched"), ("method", "get"), ("status", "4xx")]),
+            2.0,
+        ),
+        (
+            labels(&[
+                ("route", "unmatched"),
+                ("method", "other"),
+                ("status", "4xx"),
+            ]),
+            1.0,
+        ),
+    ];
+    let app_in_flight_samples = vec![
+        (
+            labels(&[("route", "/api/v1/health"), ("method", "get")]),
+            0.0,
+        ),
+        (
+            labels(&[("route", "/api/v1/health"), ("method", "head")]),
+            0.0,
+        ),
+        (
+            labels(&[("route", "/api/v1/health"), ("method", "options")]),
+            0.0,
+        ),
+        (
+            labels(&[("route", "/api/v1/posts/{slug}"), ("method", "get")]),
+            0.0,
+        ),
+        (
+            labels(&[("route", "/api/v1/admin/posts"), ("method", "post")]),
+            0.0,
+        ),
+        (labels(&[("route", "unmatched"), ("method", "get")]), 0.0),
+        (labels(&[("route", "unmatched"), ("method", "other")]), 0.0),
+    ];
+    assert_family_samples(&exposition, "snowblog_http_requests_total", &app_samples);
+    assert_family_samples(
         &exposition,
-        "snowblog_http_requests_total",
-        &[("path", "unmatched"), ("method", "get"), ("status", "4xx")],
-        1.0,
+        "snowblog_http_request_duration_seconds_count",
+        &app_samples,
     );
-
-    assert_eq!(
-        label_values(&exposition, "snowblog_http_requests_total", "path"),
-        set(&[
-            "/api/v1/admin/posts",
-            "/api/v1/health",
-            "/api/v1/posts/{slug}",
-            "unmatched",
-        ])
-    );
-    assert_eq!(
-        label_values(&exposition, "snowblog_http_requests_total", "method"),
-        set(&["get", "other", "post"])
-    );
-    assert_eq!(
-        label_values(&exposition, "snowblog_http_requests_total", "status"),
-        set(&["2xx", "4xx"])
-    );
-    for forbidden in ["private-slug", "raw-secret-path", "token", "bearer-secret"] {
+    for forbidden in [
+        "private-slug",
+        "raw-secret-path",
+        "token",
+        "bearer-secret",
+        "private-admin-path",
+        "admin-secret",
+    ] {
         assert!(!exposition.contains(forbidden), "leaked {forbidden}");
     }
 
@@ -137,11 +225,12 @@ async fn http_metrics_use_normalized_routes_and_bounded_labels() {
     let held_request = tokio::spawn(held_router.oneshot(get("/hold")));
 
     entered.wait().await;
-    assert_sample(
+    let mut held_in_flight_samples = app_in_flight_samples.clone();
+    held_in_flight_samples.push((labels(&[("route", "/hold"), ("method", "get")]), 1.0));
+    assert_family_samples(
         &handle.render(),
         "snowblog_http_requests_in_flight",
-        &[("path", "/hold"), ("method", "get")],
-        1.0,
+        &held_in_flight_samples,
     );
     release.wait().await;
     assert_eq!(
@@ -152,45 +241,85 @@ async fn http_metrics_use_normalized_routes_and_bounded_labels() {
             .status(),
         StatusCode::INTERNAL_SERVER_ERROR
     );
-    assert_sample(
+    held_in_flight_samples
+        .last_mut()
+        .expect("the held request sample exists")
+        .1 = 0.0;
+    assert_family_samples(
         &handle.render(),
         "snowblog_http_requests_in_flight",
-        &[("path", "/hold"), ("method", "get")],
-        0.0,
+        &held_in_flight_samples,
+    );
+
+    let custom_status_router = Router::new()
+        .route(
+            "/custom-status",
+            route_get(|| async { StatusCode::from_u16(600).expect("600 is a custom status") }),
+        )
+        .layer(middleware::from_fn(
+            snowblog_server::telemetry::record_http_request,
+        ));
+    assert_eq!(
+        custom_status_router
+            .oneshot(get("/custom-status"))
+            .await
+            .expect("the custom-status request succeeds")
+            .status(),
+        StatusCode::from_u16(600).expect("600 is a custom status")
+    );
+    let mut final_counter_samples = app_samples;
+    final_counter_samples.push((
+        labels(&[("route", "/hold"), ("method", "get"), ("status", "5xx")]),
+        1.0,
+    ));
+    final_counter_samples.push((
+        labels(&[
+            ("route", "/custom-status"),
+            ("method", "get"),
+            ("status", "5xx"),
+        ]),
+        1.0,
+    ));
+    assert_family_samples(
+        &handle.render(),
+        "snowblog_http_requests_total",
+        &final_counter_samples,
     );
 }
 
-fn assert_sample(exposition: &str, family: &str, labels: &[(&str, &str)], expected: f64) {
-    let line = exposition
-        .lines()
-        .filter(|line| line.starts_with(family))
-        .find(|line| {
-            labels
-                .iter()
-                .all(|(name, value)| line.contains(&format!("{name}=\"{value}\"")))
-        })
-        .unwrap_or_else(|| panic!("missing {family} sample for {labels:?}"));
-    let actual = line
-        .rsplit_once(' ')
-        .expect("Prometheus sample has a value")
-        .1
-        .parse::<f64>()
-        .expect("Prometheus sample value is numeric");
-    assert_eq!(actual, expected, "wrong {family} value for {labels:?}");
-}
+type Labels = BTreeSet<(String, String)>;
 
-fn label_values(exposition: &str, family: &str, label: &str) -> BTreeSet<String> {
-    let marker = format!("{label}=\"");
-    exposition
+fn assert_family_samples(exposition: &str, family: &str, expected: &[(Labels, f64)]) {
+    let actual = exposition
         .lines()
-        .filter(|line| line.starts_with(family))
         .filter_map(|line| {
-            let value = line.split_once(&marker)?.1;
-            Some(value.split_once('\"')?.0.to_owned())
+            let labeled_sample = line.strip_prefix(&format!("{family}{{"))?;
+            let (serialized_labels, value) = labeled_sample.split_once("} ")?;
+            let labels = serialized_labels
+                .split(',')
+                .map(|label| {
+                    let (name, quoted_value) =
+                        label.split_once('=').expect("Prometheus label has a value");
+                    let value = quoted_value
+                        .strip_prefix('\"')
+                        .and_then(|value| value.strip_suffix('\"'))
+                        .expect("Prometheus label value is quoted");
+                    (name.to_owned(), value.to_owned())
+                })
+                .collect();
+            Some((
+                labels,
+                value.parse::<f64>().expect("Prometheus sample is numeric"),
+            ))
         })
-        .collect()
+        .collect::<BTreeMap<_, _>>();
+    let expected = expected.iter().cloned().collect::<BTreeMap<_, _>>();
+    assert_eq!(actual, expected, "wrong {family} samples");
 }
 
-fn set(values: &[&str]) -> BTreeSet<String> {
-    values.iter().map(|value| (*value).to_owned()).collect()
+fn labels(values: &[(&str, &str)]) -> Labels {
+    values
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect()
 }
