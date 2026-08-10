@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { startFixtureApi } from './fixture-api.ts';
 
 const PORT = Number(process.env.SMOKE_PORT ?? 4173);
+const METRICS_PORT = PORT + 1;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 const api = startFixtureApi();
@@ -11,7 +12,8 @@ const server = spawn('node', ['build'], {
 		NODE_ENV: 'production',
 		PORT: String(PORT),
 		ORIGIN,
-		SNOWBLOG_API_URL: `http://127.0.0.1:${api.port}`
+		SNOWBLOG_API_URL: `http://127.0.0.1:${api.port}`,
+		SNOWBLOG_WEB_METRICS_LISTEN: `127.0.0.1:${METRICS_PORT}`
 	},
 	stdio: 'inherit'
 });
@@ -52,6 +54,15 @@ const checks: Check[] = [
 
 await waitUntilReady();
 let failures = 0;
+{
+	const response = await fetch(`http://127.0.0.1:${METRICS_PORT}/metrics`);
+	const body = await response.text();
+	const ok = response.status === 200 && body.includes('snowblog_web_http_requests_total');
+	console.log(
+		`${ok ? 'ok  ' : 'FAIL'} :${METRICS_PORT}/metrics [${response.status}] ~ snowblog_web_http_requests_total`
+	);
+	if (!ok) failures += 1;
+}
 for (const check of checks) {
 	const response = await fetch(`${ORIGIN}${check.path}`);
 	const body = await response.text();

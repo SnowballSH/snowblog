@@ -5,7 +5,7 @@
 
 	let { data } = $props();
 
-	const postHref = (slug: string) => `/posts/${encodeURIComponent(slug)}`;
+	const postHref = (slug: string) => resolve('/posts/[slug]', { slug });
 </script>
 
 <svelte:head>
@@ -33,24 +33,24 @@
 	{/if}
 
 	{#each data.posts as post (post.id)}
-		<Panel>
-			<article class="flex flex-col gap-2">
-				<h2 class="font-display text-xl font-semibold">
-					<Link href={postHref(post.slug)} subtle class="no-underline">{post.title}</Link>
-				</h2>
-				<div class="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
-					{#if post.published_at}
-						<time datetime={post.published_at}>{formatDate(post.published_at)}</time>
+		<a href={postHref(post.slug)} class="block no-underline">
+			<Panel interactive>
+				<article class="flex flex-col gap-2">
+					<h2 class="font-display text-xl font-semibold text-ink">{post.title}</h2>
+					<div class="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+						{#if post.published_at}
+							<time datetime={post.published_at}>{formatDate(post.published_at)}</time>
+						{/if}
+						{#each post.tags as tag (tag)}
+							<Badge>{tag}</Badge>
+						{/each}
+					</div>
+					{#if post.description}
+						<p class="text-ink-secondary">{post.description}</p>
 					{/if}
-					{#each post.tags as tag (tag)}
-						<Badge>{tag}</Badge>
-					{/each}
-				</div>
-				{#if post.description}
-					<p class="text-ink-secondary">{post.description}</p>
-				{/if}
-			</article>
-		</Panel>
+				</article>
+			</Panel>
+		</a>
 	{:else}
 		<p class="text-ink-secondary">Nothing published yet.</p>
 	{/each}
