@@ -91,6 +91,26 @@ fn telemetry_uses_only_bounded_labels_and_structured_sqlite_codes() {
         label_values(&exposition, "snowblog_render_duration_seconds", "result"),
         set(&["failure", "success"])
     );
+    for operation in ["persisted", "preview", "rerender"] {
+        assert_eq!(
+            sample_value(
+                &exposition,
+                "snowblog_render_duration_seconds_count",
+                &[("operation", operation), ("result", "success")],
+            ),
+            2.0,
+            "successful and discarded {operation} renders must both count as successful durations"
+        );
+        assert_eq!(
+            sample_value(
+                &exposition,
+                "snowblog_render_duration_seconds_count",
+                &[("operation", operation), ("result", "failure")],
+            ),
+            1.0,
+            "only failed {operation} renders may count as failed durations"
+        );
+    }
 
     for forbidden in [
         "secret-value",
@@ -133,6 +153,23 @@ fn label_values(exposition: &str, family: &str, label: &str) -> BTreeSet<String>
 
 fn set(values: &[&str]) -> BTreeSet<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
+}
+
+fn sample_value(exposition: &str, family: &str, labels: &[(&str, &str)]) -> f64 {
+    let line = exposition
+        .lines()
+        .filter(|line| line.starts_with(family))
+        .find(|line| {
+            labels
+                .iter()
+                .all(|(name, value)| line.contains(&format!("{name}=\"{value}\"")))
+        })
+        .unwrap_or_else(|| panic!("missing {family} sample for {labels:?}"));
+    line.rsplit_once(' ')
+        .expect("Prometheus sample has a value")
+        .1
+        .parse()
+        .expect("Prometheus sample value is numeric")
 }
 
 fn database_error(code: &'static str, message: &'static str) -> StoreError {
