@@ -9,6 +9,8 @@ use snowblog_core::render::RenderLimits;
 pub struct Config {
     #[arg(long, env = "SNOWBLOG_LISTEN", default_value = "127.0.0.1:8080")]
     pub listen: SocketAddr,
+    #[arg(long, env = "SNOWBLOG_METRICS_LISTEN")]
+    pub metrics_listen: Option<SocketAddr>,
     #[arg(long, env = "SNOWBLOG_DATABASE")]
     pub database: PathBuf,
     #[arg(long, env = "SNOWBLOG_ADMIN_TOKEN_FILE")]

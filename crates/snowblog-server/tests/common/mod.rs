@@ -58,6 +58,7 @@ async fn build(with_admin: bool) -> TestApp {
     }
     let config = Config {
         listen: "127.0.0.1:0".parse().unwrap(),
+        metrics_listen: None,
         database: dir.path().join("test.db"),
         admin_token_file: with_admin.then(|| token_file.clone()),
         package_root: package_root(),
