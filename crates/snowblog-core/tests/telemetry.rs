@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -10,8 +10,8 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use snowblog_core::domain::{Language, PostStatus, Revision, Slug};
 use snowblog_core::store::{ContentCounts, NewPost, PostPatch, Store, StoreError};
 use snowblog_core::telemetry::{
-    RenderOperation, RenderOutcome, SqliteContention, StoreOperation, StoreResult, record_render,
-    record_store,
+    RenderOperation, RenderOutcome, SqliteContention, StoreOperation, StoreResult,
+    record_render_attempt, record_render_duration, record_store,
 };
 use sqlx::error::{DatabaseError, ErrorKind};
 use sqlx::sqlite::SqliteConnectOptions;
@@ -58,13 +58,14 @@ fn telemetry_uses_only_bounded_labels_and_structured_sqlite_codes() {
             RenderOperation::Persisted,
             RenderOperation::Rerender,
         ] {
-            record_render(operation, RenderOutcome::Success, Duration::from_millis(1));
-            record_render(operation, RenderOutcome::Failure, Duration::from_millis(1));
-            record_render(
-                operation,
+            for outcome in [
+                RenderOutcome::Success,
+                RenderOutcome::Failure,
                 RenderOutcome::Discarded,
-                Duration::from_millis(1),
-            );
+            ] {
+                record_render_attempt(operation, outcome);
+                record_render_duration(operation, outcome, Duration::from_millis(1));
+            }
         }
     });
 
@@ -122,38 +123,78 @@ fn telemetry_uses_only_bounded_labels_and_structured_sqlite_codes() {
         .is_empty(),
         "store duration samples must not carry a result label"
     );
-    assert_eq!(
-        label_values(&exposition, "snowblog_render_attempts_total", "operation"),
-        set(&["persisted", "preview", "rerender"])
-    );
-    assert_eq!(
-        label_values(&exposition, "snowblog_render_attempts_total", "outcome"),
-        set(&["discarded", "failure", "success"])
-    );
-    assert_eq!(
-        label_values(&exposition, "snowblog_render_duration_seconds", "result"),
-        set(&["failure", "success"])
-    );
-    for operation in ["persisted", "preview", "rerender"] {
-        assert_eq!(
-            sample_value(
-                &exposition,
-                "snowblog_render_duration_seconds_count",
-                &[("operation", operation), ("result", "success")],
+    assert_family_samples(
+        &exposition,
+        "snowblog_render_attempts_total",
+        &[
+            (
+                labels(&[("operation", "preview"), ("outcome", "success")]),
+                1.0,
             ),
-            2.0,
-            "successful and discarded {operation} renders must both count as successful durations"
-        );
-        assert_eq!(
-            sample_value(
-                &exposition,
-                "snowblog_render_duration_seconds_count",
-                &[("operation", operation), ("result", "failure")],
+            (
+                labels(&[("operation", "preview"), ("outcome", "failure")]),
+                1.0,
             ),
-            1.0,
-            "only failed {operation} renders may count as failed durations"
-        );
-    }
+            (
+                labels(&[("operation", "preview"), ("outcome", "discarded")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("outcome", "success")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("outcome", "failure")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("outcome", "discarded")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "rerender"), ("outcome", "success")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "rerender"), ("outcome", "failure")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "rerender"), ("outcome", "discarded")]),
+                1.0,
+            ),
+        ],
+    );
+    assert_family_samples(
+        &exposition,
+        "snowblog_render_duration_seconds_count",
+        &[
+            (
+                labels(&[("operation", "preview"), ("result", "success")]),
+                2.0,
+            ),
+            (
+                labels(&[("operation", "preview"), ("result", "failure")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("result", "success")]),
+                2.0,
+            ),
+            (
+                labels(&[("operation", "persisted"), ("result", "failure")]),
+                1.0,
+            ),
+            (
+                labels(&[("operation", "rerender"), ("result", "success")]),
+                2.0,
+            ),
+            (
+                labels(&[("operation", "rerender"), ("result", "failure")]),
+                1.0,
+            ),
+        ],
+    );
 
     for forbidden in [
         "secret-value",
@@ -390,6 +431,36 @@ fn label_values(exposition: &str, family: &str, label: &str) -> BTreeSet<String>
 
 fn set(values: &[&str]) -> BTreeSet<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
+}
+
+type Labels = BTreeSet<(String, String)>;
+
+fn assert_family_samples(exposition: &str, family: &str, expected: &[(Labels, f64)]) {
+    let actual = exposition
+        .lines()
+        .filter_map(|line| {
+            let labeled_sample = line.strip_prefix(&format!("{family}{{"))?;
+            let (serialized_labels, value) = labeled_sample.split_once("} ")?;
+            let labels = serialized_labels
+                .split(',')
+                .map(|label| {
+                    let (name, quoted_value) = label.split_once('=')?;
+                    let value = quoted_value.strip_prefix('"')?.strip_suffix('"')?;
+                    Some((name.to_owned(), value.to_owned()))
+                })
+                .collect::<Option<Labels>>()?;
+            Some((labels, value.parse::<f64>().ok()?))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let expected = expected.iter().cloned().collect::<BTreeMap<_, _>>();
+    assert_eq!(actual, expected, "wrong {family} samples");
+}
+
+fn labels(values: &[(&str, &str)]) -> Labels {
+    values
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect()
 }
 
 fn sample_value(exposition: &str, family: &str, labels: &[(&str, &str)]) -> f64 {

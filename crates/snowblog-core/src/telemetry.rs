@@ -156,13 +156,20 @@ pub fn record_store<T>(
     }
 }
 
-pub fn record_render(operation: RenderOperation, outcome: RenderOutcome, duration: Duration) {
+pub fn record_render_attempt(operation: RenderOperation, outcome: RenderOutcome) {
     metrics::counter!(
         "snowblog_render_attempts_total",
         "operation" => operation.as_str(),
         "outcome" => outcome.as_str(),
     )
     .increment(1);
+}
+
+pub fn record_render_duration(
+    operation: RenderOperation,
+    outcome: RenderOutcome,
+    duration: Duration,
+) {
     metrics::histogram!(
         "snowblog_render_duration_seconds",
         "operation" => operation.as_str(),
