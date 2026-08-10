@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+@import 'foundationui/tokens.css';
+@import 'foundationui/theme.css';
+@source '../node_modules/foundationui';
