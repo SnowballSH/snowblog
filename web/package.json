@@ -42,6 +42,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"foundationui": "https://github.com/SnowballSH/foundationui/releases/download/v0.5.2/foundationui-0.5.2.tgz"
+		"foundationui": "https://github.com/SnowballSH/foundationui/releases/download/v0.5.3/foundationui-0.5.3.tgz",
+		"prom-client": "^15.1.3"
 	}
 }
