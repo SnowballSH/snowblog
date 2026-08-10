@@ -5,6 +5,8 @@ use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use metrics_exporter_prometheus::{BuildError, Matcher, PrometheusBuilder, PrometheusHandle};
+use snowblog_core::service::BlogService;
+use snowblog_core::store::StoreError;
 
 const HTTP_BUCKETS: [f64; 11] = [
     0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0, 10.0,
@@ -32,6 +34,30 @@ fn prometheus_builder() -> Result<PrometheusBuilder, BuildError> {
 
 pub fn install_prometheus_recorder() -> anyhow::Result<PrometheusHandle> {
     Ok(prometheus_builder()?.install_recorder()?)
+}
+
+pub async fn initialize_build_info(service: &BlogService) -> Result<(), StoreError> {
+    let schema_version = service.store().schema_version().await?.to_string();
+    metrics::gauge!(
+        "snowblog_build_info",
+        "service_version" => env!("CARGO_PKG_VERSION"),
+        "renderer_version" => service.renderer().version(),
+        "schema_version" => schema_version,
+    )
+    .set(1.0);
+    Ok(())
+}
+
+pub async fn refresh_content_metrics(service: &BlogService) -> Result<(), StoreError> {
+    let counts = service.store().content_counts().await?;
+    for (status, count) in [
+        ("draft", counts.draft),
+        ("published", counts.published),
+        ("archived", counts.archived),
+    ] {
+        metrics::gauge!("snowblog_content_posts", "status" => status).set(count as f64);
+    }
+    Ok(())
 }
 
 pub async fn record_http_request(request: Request, next: Next) -> Response {

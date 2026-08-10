@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use metrics::{set_default_local_recorder, with_local_recorder};
 use metrics_exporter_prometheus::PrometheusBuilder;
-use snowblog_core::domain::{Language, Revision, Slug};
-use snowblog_core::store::{NewPost, PostPatch, Store, StoreError};
+use snowblog_core::domain::{Language, PostStatus, Revision, Slug};
+use snowblog_core::store::{ContentCounts, NewPost, PostPatch, Store, StoreError};
 use snowblog_core::telemetry::{
     RenderOperation, RenderOutcome, SqliteContention, StoreOperation, StoreResult, record_render,
     record_store,
@@ -286,6 +286,60 @@ async fn store_boundaries_record_results_and_structured_contention_without_dynam
     ] {
         assert!(!exposition.contains(forbidden), "leaked {forbidden}");
     }
+}
+
+#[tokio::test]
+async fn content_counts_are_fixed_status_aggregates_and_schema_version_is_migrated() {
+    let store = Store::in_memory().await.unwrap();
+    assert_eq!(
+        store.content_counts().await.unwrap(),
+        ContentCounts {
+            draft: 0,
+            published: 0,
+            archived: 0,
+        }
+    );
+
+    store
+        .create_post(new_post(slug("private_draft_count")))
+        .await
+        .unwrap();
+    store
+        .create_post(new_post(slug("private_published_count")))
+        .await
+        .unwrap();
+    store
+        .set_status(
+            &slug("private_published_count"),
+            Revision(1),
+            PostStatus::Published,
+            None,
+        )
+        .await
+        .unwrap();
+    store
+        .create_post(new_post(slug("private_archived_count")))
+        .await
+        .unwrap();
+    store
+        .set_status(
+            &slug("private_archived_count"),
+            Revision(1),
+            PostStatus::Archived,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        store.content_counts().await.unwrap(),
+        ContentCounts {
+            draft: 1,
+            published: 1,
+            archived: 1,
+        }
+    );
+    assert_eq!(store.schema_version().await.unwrap(), 1);
 }
 
 #[test]

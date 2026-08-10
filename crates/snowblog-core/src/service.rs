@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,7 @@ use crate::render::{RenderAsset, RenderInput, RenderOptions, RenderOutcome, Rend
 use crate::store::{
     AssetInput, PostFilter, PostRecord, RenderArtifact, Store, StoreError, TranslationInput,
 };
+use crate::telemetry::{RenderOperation, RenderOutcome as MetricRenderOutcome, record_render};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
@@ -138,7 +140,10 @@ impl BlogService {
             .store
             .upsert_translation(slug, expected, translation)
             .await?;
-        let renders = vec![self.render_and_store(&record, &language).await?];
+        let renders = vec![
+            self.render_and_store(&record, &language, RenderOperation::Persisted)
+                .await?,
+        ];
         let record = self.reload(&record).await?;
         Ok(SaveOutcome { record, renders })
     }
@@ -174,7 +179,15 @@ impl BlogService {
             .await?
             .ok_or(StoreError::NotFound)?;
         let render_input = self.render_input(&record, source).await?;
-        Ok(self.renderer.render(render_input).await)
+        let started = Instant::now();
+        let outcome = self.renderer.render(render_input).await;
+        let duration = started.elapsed();
+        let metric_outcome = match &outcome {
+            RenderOutcome::Success { .. } => MetricRenderOutcome::Success,
+            RenderOutcome::Failure { .. } => MetricRenderOutcome::Failure,
+        };
+        record_render(RenderOperation::Preview, metric_outcome, duration);
+        Ok(outcome)
     }
 
     pub async fn publish(
@@ -239,7 +252,7 @@ impl BlogService {
                     RerenderOutcome::SkippedFresh
                 } else {
                     match self
-                        .render_and_store(&record, &entry.language)
+                        .render_and_store(&record, &entry.language, RenderOperation::Rerender)
                         .await?
                         .render
                     {
@@ -265,7 +278,10 @@ impl BlogService {
             .collect();
         let mut renders = Vec::with_capacity(languages.len());
         for language in languages {
-            renders.push(self.render_and_store(&record, &language).await?);
+            renders.push(
+                self.render_and_store(&record, &language, RenderOperation::Persisted)
+                    .await?,
+            );
         }
         let record = self.reload(&record).await?;
         Ok(SaveOutcome { record, renders })
@@ -275,6 +291,7 @@ impl BlogService {
         &self,
         record: &PostRecord,
         language: &Language,
+        operation: RenderOperation,
     ) -> Result<TranslationRender, ServiceError> {
         let translation = record
             .translation(language)
@@ -283,7 +300,9 @@ impl BlogService {
         let render_input = self
             .render_input(record, translation.source.clone())
             .await?;
+        let started = Instant::now();
         let outcome = self.renderer.render(render_input).await;
+        let duration = started.elapsed();
         let render = match outcome {
             RenderOutcome::Success { html, warnings } => {
                 let artifact = RenderArtifact {
@@ -308,9 +327,21 @@ impl BlogService {
                         "render discarded: the post changed while compiling"
                     );
                 }
+                record_render(
+                    operation,
+                    if stored {
+                        MetricRenderOutcome::Success
+                    } else {
+                        MetricRenderOutcome::Discarded
+                    },
+                    duration,
+                );
                 RenderStatus::Ok { warnings }
             }
-            RenderOutcome::Failure { diagnostics } => RenderStatus::Failed { diagnostics },
+            RenderOutcome::Failure { diagnostics } => {
+                record_render(operation, MetricRenderOutcome::Failure, duration);
+                RenderStatus::Failed { diagnostics }
+            }
         };
         Ok(TranslationRender {
             language: language.clone(),

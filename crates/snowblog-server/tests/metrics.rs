@@ -9,7 +9,12 @@ use axum::http::{Method, Request, StatusCode, header};
 use axum::middleware;
 use axum::routing::get as route_get;
 use common::{TEST_TOKEN, app_with_admin, get, send_raw};
+use metrics::set_default_local_recorder;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use snowblog_core::domain::{Language, PostStatus, Revision, Slug};
+use snowblog_core::store::{NewPost, TranslationInput};
 use snowblog_server::telemetry::install_prometheus_recorder;
+use snowblog_server::telemetry::{initialize_build_info, refresh_content_metrics};
 use tokio::sync::Barrier;
 use tower::ServiceExt;
 
@@ -284,6 +289,99 @@ async fn http_metrics_use_normalized_routes_and_bounded_labels() {
         &handle.render(),
         "snowblog_http_requests_total",
         &final_counter_samples,
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn content_gauges_reconcile_all_statuses_and_build_info_is_bounded() {
+    let recorder = PrometheusBuilder::new().build_recorder();
+    let handle = recorder.handle();
+    let _recorder_guard = set_default_local_recorder(&recorder);
+    let app = app_with_admin().await;
+    let service = app.service().await;
+
+    initialize_build_info(&service).await.unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    assert_content_samples(&handle.render(), 0.0, 0.0, 0.0);
+
+    let private_slug = Slug::parse("private_content_gauge_slug").unwrap();
+    service
+        .store()
+        .create_post(NewPost {
+            slug: private_slug.clone(),
+            default_language: Language::parse("en").unwrap(),
+            tags: vec!["private-content-tag".into()],
+            published_at: None,
+        })
+        .await
+        .unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    assert_content_samples(&handle.render(), 1.0, 0.0, 0.0);
+
+    service
+        .save_translation(
+            &private_slug,
+            Revision(1),
+            TranslationInput {
+                language: Language::parse("en").unwrap(),
+                title: "Private content title".into(),
+                description: "Private content description".into(),
+                source: "= private_content_source".into(),
+            },
+        )
+        .await
+        .unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    assert_content_samples(&handle.render(), 1.0, 0.0, 0.0);
+
+    service.publish(&private_slug, Revision(2)).await.unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    assert_content_samples(&handle.render(), 0.0, 1.0, 0.0);
+
+    service
+        .set_status(&private_slug, Revision(3), PostStatus::Archived)
+        .await
+        .unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    refresh_content_metrics(&service).await.unwrap();
+    let exposition = handle.render();
+    assert_content_samples(&exposition, 0.0, 0.0, 1.0);
+    assert_family_samples(
+        &exposition,
+        "snowblog_build_info",
+        &[(
+            (labels(&[
+                ("service_version", env!("CARGO_PKG_VERSION")),
+                ("renderer_version", service.renderer().version()),
+                (
+                    "schema_version",
+                    &service.store().schema_version().await.unwrap().to_string(),
+                ),
+            ])),
+            1.0,
+        )],
+    );
+    for forbidden in [
+        "private_content_gauge_slug",
+        "private-content-tag",
+        "Private content title",
+        "Private content description",
+        "private_content_source",
+    ] {
+        assert!(!exposition.contains(forbidden), "leaked {forbidden}");
+    }
+}
+
+fn assert_content_samples(exposition: &str, draft: f64, published: f64, archived: f64) {
+    assert_family_samples(
+        exposition,
+        "snowblog_content_posts",
+        &[
+            (labels(&[("status", "draft")]), draft),
+            (labels(&[("status", "published")]), published),
+            (labels(&[("status", "archived")]), archived),
+        ],
     );
 }
 

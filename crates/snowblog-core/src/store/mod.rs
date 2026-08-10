@@ -27,6 +27,13 @@ pub struct Store {
     pool: SqlitePool,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ContentCounts {
+    pub draft: u64,
+    pub published: u64,
+    pub archived: u64,
+}
+
 impl Store {
     pub async fn open(path: &Path) -> Result<Self, StoreError> {
         let options = SqliteConnectOptions::new()
@@ -62,6 +69,31 @@ impl Store {
 
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
+    }
+
+    pub async fn content_counts(&self) -> Result<ContentCounts, StoreError> {
+        let row = sqlx::query(
+            "SELECT
+                 COALESCE(SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END), 0) AS draft,
+                 COALESCE(SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END), 0) AS published,
+                 COALESCE(SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END), 0) AS archived
+             FROM posts",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(ContentCounts {
+            draft: row.get::<i64, _>("draft") as u64,
+            published: row.get::<i64, _>("published") as u64,
+            archived: row.get::<i64, _>("archived") as u64,
+        })
+    }
+
+    pub async fn schema_version(&self) -> Result<i64, StoreError> {
+        Ok(sqlx::query_scalar(
+            "SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations WHERE success = TRUE",
+        )
+        .fetch_one(&self.pool)
+        .await?)
     }
 
     pub async fn get_post(&self, slug: &Slug) -> Result<Option<PostRecord>, StoreError> {
