@@ -14,6 +14,11 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	],
+	server: {
+		proxy: process.env.SNOWBLOG_API_URL
+			? { '/api/v1': { target: process.env.SNOWBLOG_API_URL, changeOrigin: true } }
+			: undefined
+	},
 	test: {
 		expect: { requireAssertions: true },
 		environment: 'node',

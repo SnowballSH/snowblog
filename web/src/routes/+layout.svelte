@@ -26,7 +26,12 @@
 		class="flex items-center gap-2 font-display text-sm font-semibold tracking-wide whitespace-nowrap text-ink"
 	>
 		<img src="/favicon-192.png" alt="" width="28" height="28" decoding="async" class="h-7 w-7" />
-		{data.site.name}
+		{#if data.site.author}
+			{data.site.author}
+			<span class="text-ink-secondary max-[420px]:hidden">{data.site.name}</span>
+		{:else}
+			{data.site.name}
+		{/if}
 	</a>
 	<nav aria-label="Site" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm sm:gap-x-5">
 		<a
