@@ -220,6 +220,29 @@ mod tests {
         }
     }
 
+    // Break caught: an upkeep pass between scrapes discards recorded
+    // histogram samples instead of folding them into the next exposition.
+    #[test]
+    fn upkeep_between_scrapes_preserves_histogram_samples() {
+        let recorder = prometheus_builder()
+            .expect("bucket configuration is valid")
+            .build_recorder();
+        let handle = recorder.handle();
+
+        with_local_recorder(&recorder, || {
+            for _ in 0..3 {
+                metrics::histogram!("snowblog_http_request_duration_seconds").record(0.02);
+            }
+        });
+        handle.run_upkeep();
+
+        let exposition = handle.render();
+        assert!(
+            exposition.contains("snowblog_http_request_duration_seconds_count 3"),
+            "histogram count lost across upkeep:\n{exposition}"
+        );
+    }
+
     fn assert_boundaries(exposition: &str, family: &str, expected: &[&str]) {
         let prefix = format!("{family}_bucket{{le=\"");
         let actual = exposition

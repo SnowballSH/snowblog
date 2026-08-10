@@ -47,6 +47,7 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     snowblog_server::telemetry::refresh_content_metrics(application.service()).await?;
 
     let service = application.service().clone();
+    let upkeep_handle = metrics_handle.clone();
     let api = axum::serve(api_listener, application.into_router());
     let metrics = axum::serve(
         metrics_listener,
@@ -67,6 +68,21 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         () = reconcile_content_metrics(service) => {
             anyhow::bail!("metrics reconciliation terminated unexpectedly");
         }
+        () = run_periodic(METRICS_UPKEEP_PERIOD, move || upkeep_handle.run_upkeep()) => {
+            anyhow::bail!("metrics upkeep terminated unexpectedly");
+        }
+    }
+}
+
+const METRICS_UPKEEP_PERIOD: Duration = Duration::from_secs(5);
+
+async fn run_periodic(period: Duration, mut run: impl FnMut()) {
+    let mut interval = tokio::time::interval(period);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    interval.tick().await;
+    loop {
+        interval.tick().await;
+        run();
     }
 }
 
@@ -243,7 +259,33 @@ pub async fn rerender(args: RerenderArgs) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::bind_listeners;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use super::{bind_listeners, run_periodic};
+
+    // Break caught: the serve loop stops draining histogram buckets between
+    // scrapes, so an unscraped process accumulates samples without bound.
+    #[tokio::test(start_paused = true)]
+    async fn periodic_runner_fires_each_period_without_external_prompting() {
+        let runs = Arc::new(AtomicUsize::new(0));
+        let task = {
+            let runs = Arc::clone(&runs);
+            tokio::spawn(run_periodic(Duration::from_secs(5), move || {
+                runs.fetch_add(1, Ordering::SeqCst);
+            }))
+        };
+
+        tokio::time::sleep(Duration::from_secs(26)).await;
+        task.abort();
+
+        assert!(
+            runs.load(Ordering::SeqCst) >= 5,
+            "periodic runner fired {} times in 26s at a 5s period",
+            runs.load(Ordering::SeqCst)
+        );
+    }
 
     // Break caught: serving retains a metrics socket when configuration is
     // absent, or fails to retain the requested second socket when present.
