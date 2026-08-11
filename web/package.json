@@ -23,7 +23,8 @@
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.8",
+		"prom-client": "^15.1.3"
 	},
 	"private": true,
 	"scripts": {
@@ -42,7 +43,6 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"foundationui": "https://github.com/SnowballSH/foundationui/releases/download/v0.5.3/foundationui-0.5.3.tgz",
-		"prom-client": "^15.1.3"
+		"foundationui": "https://github.com/SnowballSH/foundationui/releases/download/v0.5.3/foundationui-0.5.3.tgz"
 	}
 }
