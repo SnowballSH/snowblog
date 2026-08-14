@@ -17,6 +17,13 @@ function jsonResponse(status: number, body: unknown): Response {
 	});
 }
 
+function htmlResponse(status: number, body: string): Response {
+	return new Response(body, {
+		status,
+		headers: { 'content-type': 'text/html' }
+	});
+}
+
 describe('AdminApi', () => {
 	it('sends the bearer token and quoted If-Match on mutations', async () => {
 		const fetchFn = vi.fn().mockResolvedValue(jsonResponse(200, { slug: 's', revision: 4 }));
@@ -36,6 +43,16 @@ describe('AdminApi', () => {
 		expect(error).toBeInstanceOf(ApiError);
 		expect(error.conflict).toBe(true);
 		expect(error.problem.detail).toBe('revision mismatch');
+	});
+	it('synthesizes a Problem from a non-JSON error body', async () => {
+		const fetchFn = vi
+			.fn()
+			.mockResolvedValue(htmlResponse(502, '<html><body>Bad Gateway</body></html>'));
+		const api = new AdminApi(config, fetchFn);
+		const error = await api.publish('s', 3).catch((e) => e);
+		expect(error).toBeInstanceOf(ApiError);
+		expect(error.problem.status).toBe(502);
+		expect(error.conflict).toBe(false);
 	});
 	it('unwraps the posts envelope from listPosts', async () => {
 		const fetchFn = vi.fn().mockResolvedValue(jsonResponse(200, { posts: [{ slug: 'x' }] }));

@@ -158,7 +158,7 @@ export class AdminApi {
 		});
 
 		if (!response.ok) {
-			const problem = (await response.json()) as Problem;
+			const problem = await this.parseProblem(response);
 			throw new ApiError(problem, response.status === 412);
 		}
 
@@ -167,5 +167,16 @@ export class AdminApi {
 		}
 
 		return (await response.json()) as T;
+	}
+
+	private async parseProblem(response: Response): Promise<Problem> {
+		try {
+			return (await response.json()) as Problem;
+		} catch {
+			return {
+				status: response.status,
+				title: response.statusText || 'Error'
+			};
+		}
 	}
 }
