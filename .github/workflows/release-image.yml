@@ -157,6 +157,7 @@ jobs:
       IMAGE: ghcr.io/snowballsh/snowblog-admin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Build
         run: |
@@ -172,15 +173,28 @@ jobs:
           token_file="$(mktemp)"
           echo "smoke-token" > "${token_file}"
           chmod 644 "${token_file}"
+          fixture_log="$(mktemp)"
+          bun web-admin/scripts/fixture-admin-api.ts > "${fixture_log}" 2>&1 &
+          fixture_pid=$!
           cleanup() {
             docker rm -f "${smoke_name}" >/dev/null 2>&1 || true
-            rm -f "${token_file}"
+            kill "${fixture_pid}" >/dev/null 2>&1 || true
+            rm -f "${token_file}" "${fixture_log}"
           }
           trap cleanup EXIT
+          fixture_port=""
+          for _ in $(seq 30); do
+            fixture_port="$(grep -o 'http://127.0.0.1:[0-9]*' "${fixture_log}" |
+              head -1 | grep -o '[0-9]*$' || true)"
+            if [ -n "${fixture_port}" ]; then break; fi
+            sleep 0.2
+          done
+          test -n "${fixture_port}"
           docker run -d \
             --name "${smoke_name}" \
+            --add-host=host.docker.internal:host-gateway \
             -v "${token_file}:/run/admin-token:ro" \
-            --env SNOWBLOG_API_URL=http://127.0.0.1:1 \
+            --env SNOWBLOG_API_URL="http://host.docker.internal:${fixture_port}" \
             --env SNOWBLOG_ADMIN_TOKEN_FILE=/run/admin-token \
             --env ADMIN_ALLOWED_USERS=smoke \
             --env ORIGIN=http://127.0.0.1:8092 \
@@ -206,7 +220,10 @@ jobs:
             -o /dev/null -w '%{http_code}' \
             -H 'Remote-User: smoke' \
             http://127.0.0.1:8092/)"
-          test "${status}" = "200" || test "${status}" = "500"
+          test "${status}" = "200"
+          curl --connect-timeout 2 --max-time 5 -fs \
+            http://127.0.0.1:19464/metrics | tee /tmp/admin-metrics.txt
+          grep -q 'snowblog_admin_' /tmp/admin-metrics.txt
 
       - name: Push
         if: github.event_name != 'pull_request'
