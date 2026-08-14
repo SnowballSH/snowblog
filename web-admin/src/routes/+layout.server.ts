@@ -1,3 +1,3 @@
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = () => ({ user: 'placeholder' });
+export const load: LayoutServerLoad = ({ locals }) => ({ user: locals.user });

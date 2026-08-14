@@ -16,14 +16,14 @@ proxies any admin API call, without a recognized identity.
 The app fails closed: it refuses to start unless every required variable is
 present and valid.
 
-| Variable | Meaning | Behavior when missing |
-|---|---|---|
-| `SNOWBLOG_API_URL` | Origin of the snowblog admin API this app calls | refuse to start |
-| `SNOWBLOG_ADMIN_TOKEN_FILE` | Path to a file holding the bearer token used to authenticate to the admin API | refuse to start |
-| `ADMIN_IDENTITY_HEADER` | Name of the request header carrying the authenticated operator's username | defaults to `Remote-User` |
-| `ADMIN_ALLOWED_USERS` | Comma-separated allowlist of usernames permitted to use the dashboard | refuse to start |
-| `ORIGIN` | Public origin of this app, used for SvelteKit's built-in origin checking on form submissions | refuse to start |
-| `SNOWBLOG_ADMIN_METRICS_LISTEN` | Address the Prometheus exposition endpoint listens on | metrics stay disabled |
+| Variable                        | Meaning                                                                                      | Behavior when missing     |
+| ------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------- |
+| `SNOWBLOG_API_URL`              | Origin of the snowblog admin API this app calls                                              | refuse to start           |
+| `SNOWBLOG_ADMIN_TOKEN_FILE`     | Path to a file holding the bearer token used to authenticate to the admin API                | refuse to start           |
+| `ADMIN_IDENTITY_HEADER`         | Name of the request header carrying the authenticated operator's username                    | defaults to `Remote-User` |
+| `ADMIN_ALLOWED_USERS`           | Comma-separated allowlist of usernames permitted to use the dashboard                        | refuse to start           |
+| `ORIGIN`                        | Public origin of this app, used for SvelteKit's built-in origin checking on form submissions | refuse to start           |
+| `SNOWBLOG_ADMIN_METRICS_LISTEN` | Address the Prometheus exposition endpoint listens on                                        | metrics stay disabled     |
 
 There is no partial startup: without a usable identity header configuration
 and a readable, non-empty token file, the app does not serve requests.
