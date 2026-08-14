@@ -1,13 +1,66 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { Badge, Button, Callout, Divider, Input, Link, Panel, Select } from 'foundationui/svelte';
+	import {
+		Badge,
+		Button,
+		Callout,
+		Divider,
+		Input,
+		Link,
+		Panel,
+		Prose,
+		Select,
+		Spinner
+	} from 'foundationui/svelte';
 	import OutcomeBanner from '$lib/components/OutcomeBanner.svelte';
 	import ConflictNotice from '$lib/components/ConflictNotice.svelte';
+	import type { PreviewResult } from '$lib/api/types.js';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const post = $derived(data.post);
+
+	interface PreviewState {
+		loading: boolean;
+		result: PreviewResult | null;
+		error: string | null;
+	}
+
+	const idlePreview: PreviewState = { loading: false, result: null, error: null };
+	let previewState = $state<Record<string, PreviewState>>({});
+	let sourceFields: Record<string, HTMLTextAreaElement> = {};
+
+	function previewFor(language: string): PreviewState {
+		return previewState[language] ?? idlePreview;
+	}
+
+	async function runPreview(language: string) {
+		const textarea = sourceFields[language];
+		if (!textarea) return;
+
+		previewState[language] = { loading: true, result: null, error: null };
+		try {
+			const response = await fetch(`/posts/${post.slug}/preview`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ source: textarea.value })
+			});
+			if (!response.ok) {
+				const body = (await response.json().catch(() => null)) as { message?: string } | null;
+				previewState[language] = {
+					loading: false,
+					result: null,
+					error: body?.message ?? `preview failed with status ${response.status}`
+				};
+				return;
+			}
+			const result = (await response.json()) as PreviewResult;
+			previewState[language] = { loading: false, result, error: null };
+		} catch {
+			previewState[language] = { loading: false, result: null, error: 'preview request failed' };
+		}
+	}
 
 	function freshnessTone(
 		freshness: 'fresh' | 'stale' | 'missing'
@@ -124,6 +177,7 @@
 	<div class="flex flex-col gap-4">
 		<h2 class="font-display text-lg font-semibold text-ink">Translations</h2>
 		{#each post.translations as translation (translation.language)}
+			{@const preview = previewFor(translation.language)}
 			<Panel class="flex flex-col gap-3">
 				<div class="flex items-center justify-between gap-3">
 					<h3 class="font-semibold text-ink">{translation.language}</h3>
@@ -146,6 +200,7 @@
 						source
 						<textarea
 							name="source"
+							bind:this={sourceFields[translation.language]}
 							class="w-full rounded border border-line bg-surface p-3 font-mono text-sm"
 							rows="20">{translation.source}</textarea
 						>
@@ -161,6 +216,61 @@
 					<input type="hidden" name="language" value={translation.language} />
 					<Button type="submit" variant="ghost">Delete {translation.language}</Button>
 				</form>
+
+				<div class="flex flex-col gap-3">
+					<Button
+						type="button"
+						variant="secondary"
+						disabled={preview.loading}
+						onclick={() => runPreview(translation.language)}
+					>
+						{#if preview.loading}
+							<Spinner size="sm" /> Previewing…
+						{:else}
+							Preview {translation.language}
+						{/if}
+					</Button>
+
+					{#if preview.error}
+						<Callout tone="warn">
+							<p class="text-sm">{preview.error}</p>
+						</Callout>
+					{:else if preview.result?.status === 'ok'}
+						{@const result = preview.result}
+						<details class="rounded border border-line">
+							<summary class="cursor-pointer p-3 text-sm font-semibold text-ink">
+								Preview output
+							</summary>
+							<div class="flex flex-col gap-3 border-t border-line p-3">
+								<Prose html={result.html} />
+								{#if result.warnings.length > 0}
+									<Callout tone="warn" class="flex flex-col gap-1">
+										{#each result.warnings as warning, index (index)}
+											<p class="text-sm">{warning.severity}: {warning.message}</p>
+										{/each}
+									</Callout>
+								{/if}
+							</div>
+						</details>
+					{:else if preview.result?.status === 'failed'}
+						{@const result = preview.result}
+						<Callout tone="warn" class="flex flex-col gap-2">
+							<p class="font-semibold text-ink">Preview failed</p>
+							{#each result.diagnostics as diagnostic, index (index)}
+								<div class="text-sm">
+									<p>{diagnostic.severity}: {diagnostic.message}</p>
+									{#if diagnostic.hints && diagnostic.hints.length > 0}
+										<ul class="list-disc pl-5 text-ink-secondary">
+											{#each diagnostic.hints as hint, hintIndex (hintIndex)}
+												<li>{hint}</li>
+											{/each}
+										</ul>
+									{/if}
+								</div>
+							{/each}
+						</Callout>
+					{/if}
+				</div>
 			</Panel>
 		{/each}
 
