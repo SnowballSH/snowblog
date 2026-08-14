@@ -90,21 +90,35 @@ describe('POST /posts/[slug]/preview', () => {
 		);
 	});
 
-	it('rejects a missing source with 400 and does not call the API', async () => {
+	it('rejects a missing source with 400, does not call the API, and records a failed audit', async () => {
 		const response = await POST(event({}));
 
 		expect(response.status).toBe(400);
 		expect(preview).not.toHaveBeenCalled();
+		expect(recordAudit).toHaveBeenCalledTimes(1);
+		expect(recordAudit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user: 'alice',
+				action: 'preview',
+				slug: 'my-post',
+				outcome: 'failed',
+				status: 400
+			})
+		);
 	});
 
-	it('rejects a non-string source with 400', async () => {
+	it('rejects a non-string source with 400 and records a failed audit', async () => {
 		const response = await POST(event({ source: 42 }));
 
 		expect(response.status).toBe(400);
 		expect(preview).not.toHaveBeenCalled();
+		expect(recordAudit).toHaveBeenCalledTimes(1);
+		expect(recordAudit).toHaveBeenCalledWith(
+			expect.objectContaining({ action: 'preview', outcome: 'failed', status: 400 })
+		);
 	});
 
-	it('rejects an unparsable body with 400', async () => {
+	it('rejects an unparsable body with 400 and records a failed audit', async () => {
 		const request = {
 			json: async () => {
 				throw new SyntaxError('bad json');
@@ -120,6 +134,16 @@ describe('POST /posts/[slug]/preview', () => {
 
 		expect(response.status).toBe(400);
 		expect(preview).not.toHaveBeenCalled();
+		expect(recordAudit).toHaveBeenCalledTimes(1);
+		expect(recordAudit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user: 'alice',
+				action: 'preview',
+				slug: 'my-post',
+				outcome: 'failed',
+				status: 400
+			})
+		);
 	});
 
 	it('maps an ApiError from the preview call to its status with a safe body and a failed audit', async () => {

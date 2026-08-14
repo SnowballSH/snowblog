@@ -17,6 +17,13 @@ async function parseSource(request: Request): Promise<string | null> {
 export const POST: RequestHandler = async ({ request, params, locals, fetch }) => {
 	const source = await parseSource(request);
 	if (source === null) {
+		recordAudit({
+			user: locals.user,
+			action: 'preview',
+			slug: params.slug,
+			outcome: 'failed',
+			status: 400
+		});
 		return Response.json({ message: 'source is required' }, { status: 400 });
 	}
 
