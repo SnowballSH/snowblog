@@ -107,7 +107,8 @@ describe('actions.create', () => {
 				user: 'alice',
 				action: 'create',
 				slug: 'new-post',
-				outcome: 'ok'
+				outcome: 'ok',
+				status: 201
 			})
 		);
 	});
@@ -164,5 +165,25 @@ describe('actions.create', () => {
 
 		expect(result.status).toBe(409);
 		expect(result.data).toMatchObject({ ok: false, conflict: true, auditId: 'audit-1' });
+	});
+
+	it('maps a native 409 (duplicate slug, not a revision conflict) to fail(409) without conflict: true', async () => {
+		createPost.mockRejectedValue(new ApiError({ status: 409, detail: 'slug taken' }, false));
+
+		const event = {
+			request: formRequest({ slug: 'taken', default_language: 'en' }),
+			locals: { user: 'alice' },
+			fetch
+		} as never;
+
+		const result = (await actions.create(event)) as { status: number; data: CreateOutcome };
+
+		expect(result.status).toBe(409);
+		expect(result.data).toEqual({
+			ok: false,
+			auditId: 'audit-1',
+			message: 'slug taken'
+		});
+		expect(result.data.conflict).toBeFalsy();
 	});
 });

@@ -50,7 +50,7 @@ export const actions: Actions = {
 			action: 'create',
 			slug: created.slug,
 			outcome: 'ok',
-			status: 200
+			status: 201
 		});
 
 		redirect(303, `/posts/${created.slug}`);
