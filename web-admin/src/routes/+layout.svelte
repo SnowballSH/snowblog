@@ -1,7 +1,10 @@
 <script lang="ts">
 	import '../app.css';
 	import { Header, ThemeToggle } from 'foundationui/svelte';
+	import { page } from '$app/state';
 	let { children, data } = $props();
+
+	const fullBleed = $derived(page.route.id === '/posts/[slug]/write/[language]');
 </script>
 
 <Header>
@@ -11,6 +14,8 @@
 		<ThemeToggle />
 	</div>
 </Header>
-<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+<main
+	class={fullBleed ? 'flex min-h-0 flex-1 flex-col' : 'mx-auto w-full max-w-5xl flex-1 px-4 py-8'}
+>
 	{@render children()}
 </main>

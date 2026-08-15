@@ -182,9 +182,12 @@
 			<Panel class="flex flex-col gap-3">
 				<div class="flex items-center justify-between gap-3">
 					<h3 class="font-semibold text-ink">{translation.language}</h3>
-					<Badge tone={freshnessTone(freshnessFor(translation.language))}>
-						{freshnessFor(translation.language)}
-					</Badge>
+					<div class="flex items-center gap-3">
+						<Badge tone={freshnessTone(freshnessFor(translation.language))}>
+							{freshnessFor(translation.language)}
+						</Badge>
+						<Link href={`${base}/posts/${post.slug}/write/${translation.language}`}>Write</Link>
+					</div>
 				</div>
 				<form method="POST" action="?/saveTranslation" use:enhance class="flex flex-col gap-3">
 					<input type="hidden" name="revision" value={post.revision} />
