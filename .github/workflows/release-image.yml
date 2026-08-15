@@ -204,23 +204,27 @@ jobs:
             "${IMAGE}:sha-${GITHUB_SHA}"
           for _ in $(seq 30); do
             if curl --connect-timeout 1 --max-time 2 -fs \
-              http://127.0.0.1:8092/healthz >/dev/null; then
+              http://127.0.0.1:8092/blogs/healthz >/dev/null; then
               break
             fi
             sleep 1
           done
           curl --connect-timeout 2 --max-time 5 -fs \
-            http://127.0.0.1:8092/healthz | tee /tmp/admin-healthz.json
+            http://127.0.0.1:8092/blogs/healthz | tee /tmp/admin-healthz.json
           grep -q '"status":"ok"' /tmp/admin-healthz.json
           status="$(curl --connect-timeout 2 --max-time 5 -s \
             -o /dev/null -w '%{http_code}' \
-            http://127.0.0.1:8092/)"
+            http://127.0.0.1:8092/blogs/)"
           test "${status}" = "403"
           status="$(curl --connect-timeout 2 --max-time 5 -s \
             -o /dev/null -w '%{http_code}' \
             -H 'Remote-User: smoke' \
-            http://127.0.0.1:8092/)"
+            http://127.0.0.1:8092/blogs/)"
           test "${status}" = "200"
+          status="$(curl --connect-timeout 2 --max-time 5 -s \
+            -o /dev/null -w '%{http_code}' \
+            http://127.0.0.1:8092/)"
+          test "${status}" = "404"
           curl --connect-timeout 2 --max-time 5 -fs \
             http://127.0.0.1:19464/metrics | tee /tmp/admin-metrics.txt
           grep -q 'snowblog_admin_' /tmp/admin-metrics.txt

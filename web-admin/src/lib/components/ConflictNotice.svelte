@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	import { Callout, Link } from 'foundationui/svelte';
 
 	let { slug, message }: { slug: string; message: string } = $props();
@@ -11,5 +12,5 @@
 		Someone else's edit landed first. Copy any unsaved text out of the form now, then reload to see
 		the current revision before trying again.
 	</p>
-	<Link href={`/posts/${slug}`} data-sveltekit-reload>Reload this post</Link>
+	<Link href={`${base}/posts/${slug}`} data-sveltekit-reload>Reload this post</Link>
 </Callout>

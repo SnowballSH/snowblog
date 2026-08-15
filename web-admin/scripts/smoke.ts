@@ -46,7 +46,7 @@ function shutdown(code: number): never {
 async function waitUntilReady(): Promise<void> {
 	for (let attempt = 0; attempt < 50; attempt += 1) {
 		try {
-			const response = await fetch(`${ORIGIN}/healthz`, { redirect: 'manual' });
+			const response = await fetch(`${ORIGIN}/blogs/healthz`, { redirect: 'manual' });
 			if (response.status > 0) return;
 		} catch {
 			await new Promise((resolve) => setTimeout(resolve, 200));
@@ -74,12 +74,12 @@ async function check(
 
 await waitUntilReady();
 
-await check('GET /healthz', '/healthz', 200, '"status":"ok"');
-await check('GET / (no identity)', '/', 403, 'forbidden');
-await check('GET / (Remote-User: smoke)', '/', 200, 'snowblog admin', {
+await check('GET /blogs/healthz', '/blogs/healthz', 200, '"status":"ok"');
+await check('GET /blogs/ (no identity)', '/blogs/', 403, 'forbidden');
+await check('GET /blogs/ (Remote-User: smoke)', '/blogs/', 200, 'snowblog admin', {
 	'Remote-User': 'smoke'
 });
-await check('GET / (Remote-User: other)', '/', 403, 'forbidden', {
+await check('GET /blogs/ (Remote-User: other)', '/blogs/', 403, 'forbidden', {
 	'Remote-User': 'other'
 });
 

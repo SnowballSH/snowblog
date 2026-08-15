@@ -1,6 +1,7 @@
 import type { Handle, ServerInit } from '@sveltejs/kit';
 import { readFileSync } from 'node:fs';
 import { building } from '$app/environment';
+import { base } from '$app/paths';
 import { getConfig, initConfig, loadConfig } from '$lib/server/config.js';
 import { crossSiteViolation, identityFrom } from '$lib/server/guard.js';
 import { observeRequest, startMetricsServer } from '$lib/server/metrics.js';
@@ -15,7 +16,7 @@ export const init: ServerInit = () => {
 export const handle: Handle = async ({ event, resolve }) => {
 	const started = performance.now();
 	let response: Response;
-	if (event.url.pathname === '/healthz') {
+	if (event.url.pathname === `${base}/healthz`) {
 		response = Response.json({ status: 'ok' });
 	} else {
 		const config = getConfig();
