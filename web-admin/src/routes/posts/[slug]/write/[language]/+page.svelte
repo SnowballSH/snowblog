@@ -7,6 +7,7 @@
 	import ConflictNotice from '$lib/components/ConflictNotice.svelte';
 	import TypstEditor from '$lib/editor/TypstEditor.svelte';
 	import { debounce } from '$lib/editor/debounce.js';
+	import { createPreviewController } from '$lib/editor/preview-controller.js';
 	import type { PreviewResult } from '$lib/api/types.js';
 	import type { ActionData, PageData } from './$types';
 
@@ -26,61 +27,69 @@
 	let previewResult = $state<PreviewResult | null>(null);
 	let previewError = $state<string | null>(null);
 
-	let previewInFlight = false;
-	let lastRequestedSource: string | null = null;
-	let queuedSource: string | null = null;
+	type PreviewOutcome = { kind: 'ok'; result: PreviewResult } | { kind: 'error'; message: string };
 
-	async function requestPreview(text: string): Promise<void> {
-		if (text === lastRequestedSource) return;
-		if (previewInFlight) {
-			queuedSource = text;
-			return;
-		}
-		lastRequestedSource = text;
-		previewInFlight = true;
+	async function runPreviewFetch(text: string, signal: AbortSignal): Promise<PreviewOutcome> {
 		previewLoading = true;
 		try {
 			const response = await fetch(`${base}/posts/${post.slug}/preview`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ source: text })
+				body: JSON.stringify({ source: text }),
+				signal
 			});
 			if (!response.ok) {
 				const body = (await response.json().catch(() => null)) as { message?: string } | null;
-				previewError = body?.message ?? `preview failed with status ${response.status}`;
-				previewResult = null;
-			} else {
-				previewResult = (await response.json()) as PreviewResult;
-				previewError = null;
+				return {
+					kind: 'error',
+					message: body?.message ?? `preview failed with status ${response.status}`
+				};
 			}
+			return { kind: 'ok', result: (await response.json()) as PreviewResult };
 		} catch {
-			previewError = 'preview request failed';
-			previewResult = null;
+			return { kind: 'error', message: 'preview request failed' };
 		} finally {
-			previewInFlight = false;
 			previewLoading = false;
-			if (queuedSource !== null) {
-				const next = queuedSource;
-				queuedSource = null;
-				void requestPreview(next);
-			}
 		}
 	}
 
-	const scheduleAutoPreview = debounce((text: string) => void requestPreview(text), 900);
+	function applyPreviewOutcome(outcome: PreviewOutcome): void {
+		if (outcome.kind === 'ok') {
+			previewResult = outcome.result;
+			previewError = null;
+		} else {
+			previewError = outcome.message;
+			previewResult = null;
+		}
+	}
 
-	let previewedOnce = false;
+	const previewController = createPreviewController(runPreviewFetch);
+	const scheduleAutoPreview = debounce(
+		(text: string) => previewController.request(text, applyPreviewOutcome),
+		900
+	);
+
+	let previewedPairKey: string | null = null;
 	$effect(() => {
+		const pairKey = `${post.slug}::${language}`;
 		const current = source;
-		if (!previewedOnce) {
-			previewedOnce = true;
-			void requestPreview(current);
+		if (pairKey !== previewedPairKey) {
+			previewedPairKey = pairKey;
+			scheduleAutoPreview.cancel();
+			previewController.reset();
+			previewResult = null;
+			previewError = null;
+			previewLoading = false;
+			previewController.request(current, applyPreviewOutcome);
 			return;
 		}
 		scheduleAutoPreview(current);
 	});
 
-	$effect(() => () => scheduleAutoPreview.cancel());
+	$effect(() => () => {
+		scheduleAutoPreview.cancel();
+		previewController.dispose();
+	});
 
 	const saveSubmit: SubmitFunction = () => {
 		saving = true;
