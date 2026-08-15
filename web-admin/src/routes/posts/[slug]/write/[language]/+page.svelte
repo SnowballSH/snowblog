@@ -168,8 +168,8 @@
 		</div>
 	</details>
 
-	<div class="grid min-h-0 flex-1 grid-cols-2">
-		<div class="flex min-h-0 flex-col border-r border-line">
+	<div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1">
+		<div class="flex min-h-0 flex-col border-b border-line md:border-r md:border-b-0">
 			<div class="min-h-0 flex-1">
 				<TypstEditor bind:value={source} placeholder="Start writing…" />
 			</div>
