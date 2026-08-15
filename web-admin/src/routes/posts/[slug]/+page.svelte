@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { base } from '$app/paths';
 	import {
 		Badge,
 		Button,
@@ -41,7 +42,7 @@
 
 		previewState[language] = { loading: true, result: null, error: null };
 		try {
-			const response = await fetch(`/posts/${post.slug}/preview`, {
+			const response = await fetch(`${base}/posts/${post.slug}/preview`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ source: textarea.value })
@@ -102,7 +103,7 @@
 			<Badge tone={post.status === 'published' ? 'aurora' : 'neutral'}>{post.status}</Badge>
 			<span class="text-sm text-ink-muted">revision {post.revision}</span>
 		</div>
-		<Link href="/">Back to posts</Link>
+		<Link href={base || '/'}>Back to posts</Link>
 	</div>
 
 	<OutcomeBanner result={form} />

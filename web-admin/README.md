@@ -48,6 +48,14 @@ authorize requests as `dev`.
 Other useful scripts: `bun run build`, `bun run check`, `bun run lint`,
 `bun run format`, `bun run test`.
 
+## Base path
+
+The app is mounted under `/blogs` (`kit.paths.base` in `vite.config.ts`), so
+every route, redirect, form action, and built asset URL lives under
+`/blogs/...` and the health check is served at `/blogs/healthz`. A request
+outside that prefix is not routed at all. The root path is deliberately left
+free for a future top-level admin dashboard to live at the domain root.
+
 ## Genericity
 
 This app's code never names a specific deployment: no reverse proxy,

@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import { AdminApi, ApiError } from '$lib/server/client.js';
 import { getConfig } from '$lib/server/config.js';
 import { recordAudit } from '$lib/server/audit.js';
@@ -102,7 +103,7 @@ export const actions: Actions = {
 			status: 200
 		});
 		if (result.value.slug !== params.slug) {
-			redirect(303, `/posts/${result.value.slug}`);
+			redirect(303, `${base}/posts/${result.value.slug}`);
 		}
 		return { ok: true, auditId, message: 'metadata saved' };
 	},
@@ -300,6 +301,6 @@ export const actions: Actions = {
 			outcome: 'ok',
 			status: 204
 		});
-		redirect(303, '/');
+		redirect(303, base || '/');
 	}
 };

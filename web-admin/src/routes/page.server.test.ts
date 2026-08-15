@@ -96,7 +96,7 @@ describe('actions.create', () => {
 
 		expect(isRedirect(redirected)).toBe(true);
 		expect((redirected as { status: number }).status).toBe(303);
-		expect((redirected as { location: string }).location).toBe('/posts/new-post');
+		expect((redirected as { location: string }).location).toBe('/blogs/posts/new-post');
 		expect(createPost).toHaveBeenCalledWith({
 			slug: 'new-post',
 			default_language: 'en',

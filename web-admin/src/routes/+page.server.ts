@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import { AdminApi, ApiError } from '$lib/server/client.js';
 import { getConfig } from '$lib/server/config.js';
 import { recordAudit } from '$lib/server/audit.js';
@@ -53,6 +54,6 @@ export const actions: Actions = {
 			status: 201
 		});
 
-		redirect(303, `/posts/${created.slug}`);
+		redirect(303, `${base}/posts/${created.slug}`);
 	}
 };

@@ -185,7 +185,7 @@ describe('actions.saveMeta', () => {
 
 		expect(isRedirect(redirected)).toBe(true);
 		expect((redirected as { status: number }).status).toBe(303);
-		expect((redirected as { location: string }).location).toBe('/posts/renamed');
+		expect((redirected as { location: string }).location).toBe('/blogs/posts/renamed');
 	});
 
 	it('rejects a non-numeric revision with fail(400) without calling the API', async () => {
@@ -360,7 +360,7 @@ describe('actions.deletePost', () => {
 
 		expect(isRedirect(redirected)).toBe(true);
 		expect((redirected as { status: number }).status).toBe(303);
-		expect((redirected as { location: string }).location).toBe('/');
+		expect((redirected as { location: string }).location).toBe('/blogs');
 		expect(recordAudit).toHaveBeenCalledWith(
 			expect.objectContaining({ action: 'deletePost', outcome: 'ok', status: 204 })
 		);
