@@ -16,6 +16,9 @@
 							: 'light';
 			} catch {}
 			document.documentElement.dataset.theme = theme;
+			if (/\/posts\/[^/]+\/write\/[^/]+\/?$/.test(location.pathname)) {
+				document.documentElement.classList.add('write-view-lock');
+			}
 		</script>
 		%sveltekit.head%
 	</head>

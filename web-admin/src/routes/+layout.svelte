@@ -5,6 +5,11 @@
 	let { children, data } = $props();
 
 	const fullBleed = $derived(page.route.id === '/posts/[slug]/write/[language]');
+
+	$effect(() => {
+		document.documentElement.classList.toggle('write-view-lock', fullBleed);
+		return () => document.documentElement.classList.remove('write-view-lock');
+	});
 </script>
 
 <Header>

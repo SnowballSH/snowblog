@@ -4,3 +4,9 @@
 @import 'foundationui/tokens.css';
 @import 'foundationui/theme.css';
 @source '../node_modules/foundationui';
+
+html.write-view-lock,
+html.write-view-lock body {
+	height: 100dvh;
+	overflow: hidden;
+}
