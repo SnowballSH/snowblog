@@ -82,6 +82,13 @@ await check('GET /blogs/ (Remote-User: smoke)', '/blogs/', 200, 'snowblog admin'
 await check('GET /blogs/ (Remote-User: other)', '/blogs/', 403, 'forbidden', {
 	'Remote-User': 'other'
 });
+await check(
+	'GET /blogs/posts/smoke-post/write/en (Remote-User: smoke)',
+	'/blogs/posts/smoke-post/write/en',
+	200,
+	'write · smoke-post/en',
+	{ 'Remote-User': 'smoke' }
+);
 
 {
 	const response = await fetch(`http://127.0.0.1:${METRICS_PORT}/metrics`);

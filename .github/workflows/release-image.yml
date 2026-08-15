@@ -223,6 +223,15 @@ jobs:
           test "${status}" = "200"
           status="$(curl --connect-timeout 2 --max-time 5 -s \
             -o /dev/null -w '%{http_code}' \
+            -H 'Remote-User: smoke' \
+            http://127.0.0.1:8092/blogs/posts/smoke-post/write/en)"
+          test "${status}" = "200"
+          curl --connect-timeout 2 --max-time 5 -fs \
+            -H 'Remote-User: smoke' \
+            http://127.0.0.1:8092/blogs/posts/smoke-post/write/en |
+            grep -q 'write · smoke-post/en'
+          status="$(curl --connect-timeout 2 --max-time 5 -s \
+            -o /dev/null -w '%{http_code}' \
             http://127.0.0.1:8092/)"
           test "${status}" = "404"
           curl --connect-timeout 2 --max-time 5 -fs \
