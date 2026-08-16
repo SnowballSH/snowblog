@@ -494,32 +494,40 @@ cd web-admin && git add -A src/lib/editor && git commit -m "feat(web-admin): reb
 
 ---
 
-## Task 4: Smart Enter-expands-brackets (CONDITIONAL)
+## Task 4: Smart bracket/indent behavior (REQUIRED)
 
-Only do this task if Task 3 Step 6 showed that Enter between `{|}` does **not** expand into an indented block. If it already works, mark this task skipped and move on.
+The controller verified the live editor from Task 3 in an isolated sandbox. Findings that make this task necessary (do NOT re-decide — these are confirmed, not hypotheses):
+- Enter between `{|}` DOES explode into a three-line block (`insertNewlineAndIndent`'s textual bracket check), **but the interior line gets no indentation** (caret at column 0) — the grammar registers no `indentService`.
+- Enter at the end of an indented line does **not** preserve indentation either (new line at column 0).
+
+The user asked for "expands into an indented block … auto-indent on new lines." Delivering that needs BOTH mechanisms below, and the sandbox confirmed both work:
+1. `typstIndentService` — a CodeMirror `indentService` that returns the previous line's indent (+ one unit when that line ends with an open bracket). Sandbox-verified: newline after `#figure(` indents +2; newline after an indented line preserves indent.
+2. `expandBracketOnEnter` — an Enter command that, when the caret sits between a matching pair, inserts an indented interior line and drops the closer to its own line. The `indentService` alone does NOT indent the double-break interior (verified: interior stayed at column 0), so this explicit command is required for the bracket case. Sandbox-verified: `    {}` → `    {` / `      ⟨caret⟩` / `    }`.
 
 **Files:**
-- Create: `web-admin/src/lib/editor/smart-brackets.ts`
-- Test: `web-admin/src/lib/editor/smart-brackets.test.ts`
-- Modify: `web-admin/src/lib/editor/TypstEditor.svelte` (keymap)
+- Create: `web-admin/src/lib/editor/smart-indent.ts`
+- Test: `web-admin/src/lib/editor/smart-indent.test.ts`
+- Modify: `web-admin/src/lib/editor/TypstEditor.svelte` (keymap + extensions)
 
 **Interfaces:**
 - Produces:
   ```ts
   // Pure predicate — testable without a DOM.
   export function isInsidePair(before: string, after: string): boolean;
-  // CodeMirror command bound to Enter.
+  // CodeMirror command bound to Enter (before defaultKeymap).
   export const expandBracketOnEnter: (view: EditorView) => boolean;
+  // Extension: general auto-indent for a language with no grammar indentation.
+  export const typstIndentService: Extension;
   ```
   `isInsidePair` returns true when `before`/`after` are a matching open/close pair among `()`, `[]`, `{}`.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `web-admin/src/lib/editor/smart-brackets.test.ts`:
+Create `web-admin/src/lib/editor/smart-indent.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { isInsidePair } from './smart-brackets.js';
+import { isInsidePair } from './smart-indent.js';
 
 describe('isInsidePair', () => {
 	it('is true for matching pairs', () => {
@@ -540,18 +548,19 @@ describe('isInsidePair', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd web-admin && bun run test:unit -- --run src/lib/editor/smart-brackets.test.ts
+cd web-admin && bun run test:unit -- --run src/lib/editor/smart-indent.test.ts
 ```
 
-Expected: FAIL — cannot resolve `./smart-brackets.js`.
+Expected: FAIL — cannot resolve `./smart-indent.js`.
 
 - [ ] **Step 3: Implement**
 
-Create `web-admin/src/lib/editor/smart-brackets.ts`:
+Create `web-admin/src/lib/editor/smart-indent.ts` (this exact code was validated live in the sandbox):
 
 ```ts
-import { EditorSelection } from '@codemirror/state';
+import { EditorSelection, type Extension } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { getIndentUnit, indentService } from '@codemirror/language';
 
 const PAIRS: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
 
@@ -559,8 +568,9 @@ export function isInsidePair(before: string, after: string): boolean {
 	return before in PAIRS && PAIRS[before] === after;
 }
 
-// If every selection range is an empty caret sitting between a matching bracket
-// pair, insert an indented blank line and push the closer down (VSCode behavior).
+// Enter between a matching bracket pair → explode into an indented block with the
+// closer on its own line (VSCode behavior). Returns false (falling through to the
+// default newline) whenever the caret is not an empty selection between a pair.
 export const expandBracketOnEnter = (view: EditorView): boolean => {
 	const { state } = view;
 	const ranges = state.selection.ranges;
@@ -572,11 +582,11 @@ export const expandBracketOnEnter = (view: EditorView): boolean => {
 	});
 	if (!applicable) return false;
 
-	const indentUnit = '  ';
+	const unit = ' '.repeat(getIndentUnit(state));
 	const changes = state.changeByRange((range) => {
 		const line = state.doc.lineAt(range.from);
 		const baseIndent = /^\s*/.exec(line.text)?.[0] ?? '';
-		const inner = baseIndent + indentUnit;
+		const inner = baseIndent + unit;
 		const insert = `\n${inner}\n${baseIndent}`;
 		return {
 			changes: { from: range.from, insert },
@@ -586,25 +596,43 @@ export const expandBracketOnEnter = (view: EditorView): boolean => {
 	view.dispatch(state.update(changes, { scrollIntoView: true, userEvent: 'input' }));
 	return true;
 };
+
+// General auto-indent: the Typst grammar ships no indentation service, so a new line
+// would otherwise start at column 0. Copy the previous line's indent, plus one unit
+// when that line ends with an open bracket.
+export const typstIndentService: Extension = indentService.of((context, pos) => {
+	const line = context.lineAt(pos, -1);
+	const leading = /^\s*/.exec(line.text)?.[0]?.length ?? 0;
+	const trimmed = line.text.replace(/\s+$/, '');
+	return /[([{]$/.test(trimmed) ? leading + getIndentUnit(context.state) : leading;
+});
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-cd web-admin && bun run test:unit -- --run src/lib/editor/smart-brackets.test.ts
+cd web-admin && bun run test:unit -- --run src/lib/editor/smart-indent.test.ts
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Bind it to Enter in `TypstEditor.svelte`**
+- [ ] **Step 5: Wire both into `TypstEditor.svelte`**
 
-Add the import:
+Add the import (top of the `<script>`, with the other `./`-relative imports):
 
 ```ts
-	import { expandBracketOnEnter } from './smart-brackets.js';
+	import { expandBracketOnEnter, typstIndentService } from './smart-indent.js';
 ```
 
-Prepend an Enter binding **before** `...defaultKeymap` in the `keymap.of([...])` array:
+Add `typstIndentService` to the extension list in `buildExtensions`, right after `indentOnInput()`:
+
+```ts
+			indentOnInput(),
+			typstIndentService,
+			indentUnit.of('  '),
+```
+
+Prepend the Enter binding **before** `...defaultKeymap` in the `keymap.of([...])` array:
 
 ```ts
 			keymap.of([
@@ -618,18 +646,18 @@ Prepend an Enter binding **before** `...defaultKeymap` in the `keymap.of([...])`
 			]),
 ```
 
-- [ ] **Step 6: Verify in the browser**
+- [ ] **Step 6: Type-check and full suite**
 
 ```bash
-cd web-admin && bun run dev
+cd web-admin && bun run check && bun run test
 ```
 
-Confirm Enter between `{|}` now expands into an indented block with the closer on its own line; a normal Enter elsewhere is unaffected. Stop the server.
+Expected: both PASS (0 errors; `smart-indent` test green alongside the rest). Do NOT run a live dev server — the controller re-verifies the interaction behavior in the sandbox after this task.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd web-admin && git add src/lib/editor/smart-brackets.ts src/lib/editor/smart-brackets.test.ts src/lib/editor/TypstEditor.svelte && git commit -m "feat(web-admin): expand brackets on Enter in the Typst editor"
+cd web-admin && git add src/lib/editor/smart-indent.ts src/lib/editor/smart-indent.test.ts src/lib/editor/TypstEditor.svelte && git commit -m "feat(web-admin): smart bracket-explode and auto-indent in the Typst editor"
 ```
 
 ---
