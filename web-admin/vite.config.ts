@@ -3,7 +3,6 @@ import { defineConfig } from 'vitest/config';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import wasm from 'vite-plugin-wasm';
-import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
 	plugins: [
@@ -16,16 +15,14 @@ export default defineConfig({
 			adapter: adapter(),
 			paths: { base: '/blogs' }
 		}),
-		wasm(),
-		topLevelAwait()
+		wasm()
 	],
 	build: {
-		// vite-plugin-top-level-await falls back to a legacy multi-browser
-		// esbuild target when `build.target` is unset, and current esbuild
-		// fails to downlevel some destructuring patterns the plugin's TLA
-		// glue code generates for that target combination. Building for
-		// esnext skips that downlevel step entirely (TLA already requires a
-		// modern browser).
+		// vite-plugin-wasm compiles the Typst grammar's `.wasm` import into a
+		// top-level-await module. Targeting esnext emits that TLA natively, so we
+		// don't need vite-plugin-top-level-await — whose esbuild shim breaks under
+		// bun's container install (`virtualModule.require` is undefined). TLA
+		// already implies a modern browser, which this admin tool targets.
 		target: 'esnext'
 	},
 	server: {
