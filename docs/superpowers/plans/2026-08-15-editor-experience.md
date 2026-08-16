@@ -212,12 +212,36 @@ cd web-admin && git rm src/lib/editor/typst-mode.ts src/lib/editor/typst-mode.te
 
 - [ ] **Step 2: Rewrite `TypstEditor.svelte`**
 
+**IMPORTANT — verified integration facts (do not deviate without re-checking the package source):**
+
+- `typst()` returns a `LanguageSupport` whose highlighting is done by an exported
+  `ViewPlugin` (`typstHighlighting`) that runs its OWN wasm parser per view and applies
+  decorations, resolving each token's CSS class via `highlightingFor(state, [tag])`
+  (reads the registered `HighlightStyle`s). It ALSO bundles two `syntaxHighlighting(...)`
+  calls with hardcoded colors. `highlightingFor` **combines** classes from every
+  registered style, so layering our style on top of `typst()` wholesale would apply both
+  palettes. Therefore assemble the language manually: use `typst().language` +
+  the exported `typstHighlighting` ViewPlugin + only OUR `syntaxHighlighting(...)`.
+- Importing anything from `codemirror-lang-typst` triggers wasm load at module eval
+  (top-level `get_highlight_tags()`). So the grammar import stays inside the browser-only
+  mount, and because our `HighlightStyle` references the package's custom tags
+  (`typstTags.{mathDelimiter,listMarker,interpolated}`), the `HighlightStyle` is built
+  INSIDE that async callback too — not at module top level.
+- No parser-sync `StateField`/`updateListener` is needed (deprecated no-op in 0.6.0).
+- Exact tag set the highlighter emits (map every one): `tags.comment`,
+  `tags.punctuation`, `tags.escape` (also labels/refs/math-ops), `tags.strong` (also
+  terms), `tags.emphasis`, `tags.link`, `tags.monospace` (raw), `tags.heading`,
+  `tags.keyword`, `tags.operator`, `tags.number`, `tags.string`,
+  `tags.function(tags.variableName)`, `tags.invalid` (errors), `tags.paren` (math
+  groups), and custom `typstTags.mathDelimiter`, `typstTags.listMarker`,
+  `typstTags.interpolated`.
+
 Replace the entire file `web-admin/src/lib/editor/TypstEditor.svelte` with:
 
 ```svelte
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { EditorState, type Extension } from '@codemirror/state';
+	import { EditorState, Prec, type Extension } from '@codemirror/state';
 	import {
 		EditorView,
 		keymap,
@@ -244,6 +268,7 @@ Replace the entire file `web-admin/src/lib/editor/TypstEditor.svelte` with:
 	import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 	import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 	import { tags } from '@lezer/highlight';
+	import type { Tag } from '@lezer/highlight';
 
 	let { value = $bindable(''), placeholder = '' }: { value?: string; placeholder?: string } =
 		$props();
@@ -251,32 +276,34 @@ Replace the entire file `web-admin/src/lib/editor/TypstEditor.svelte` with:
 	let host: HTMLDivElement | undefined;
 	let view: EditorView | undefined = $state();
 
-	const highlightStyle = HighlightStyle.define([
-		{ tag: tags.comment, color: 'var(--fui-ink-muted)', fontStyle: 'italic' },
-		{ tag: tags.lineComment, color: 'var(--fui-ink-muted)', fontStyle: 'italic' },
-		{ tag: tags.blockComment, color: 'var(--fui-ink-muted)', fontStyle: 'italic' },
-		{ tag: tags.string, color: 'var(--fui-code-green)' },
-		{ tag: tags.escape, color: 'var(--fui-code-green)' },
-		{ tag: tags.number, color: 'var(--fui-code-blue)' },
-		{ tag: tags.bool, color: 'var(--fui-code-blue)' },
-		{ tag: tags.atom, color: 'var(--fui-code-blue)' },
-		{ tag: tags.keyword, color: 'var(--fui-accent-strong)', fontWeight: '600' },
-		{ tag: tags.controlKeyword, color: 'var(--fui-accent-strong)', fontWeight: '600' },
-		{ tag: tags.definitionKeyword, color: 'var(--fui-accent-strong)', fontWeight: '600' },
-		{ tag: tags.moduleKeyword, color: 'var(--fui-accent-strong)', fontWeight: '600' },
-		{ tag: tags.operator, color: 'var(--fui-code-violet)' },
-		{ tag: tags.variableName, color: 'var(--fui-code-violet)' },
-		{ tag: tags.function(tags.variableName), color: 'var(--fui-code-violet)' },
-		{ tag: tags.meta, color: 'var(--fui-code-violet)' },
-		{ tag: tags.heading, color: 'var(--fui-ink)', fontWeight: '700' },
-		{ tag: tags.strong, fontWeight: '700' },
-		{ tag: tags.emphasis, fontStyle: 'italic' },
-		{ tag: tags.monospace, color: 'var(--fui-code-warm)' },
-		{ tag: tags.labelName, color: 'var(--fui-code-warm)' },
-		{ tag: tags.link, color: 'var(--fui-code-warm)', textDecoration: 'underline' },
-		{ tag: tags.list, color: 'var(--fui-code-warm)' },
-		{ tag: tags.processingInstruction, color: 'var(--fui-code-warm)' }
-	]);
+	// Built inside the async mount because it references the grammar's custom tags,
+	// and importing the grammar triggers wasm load (must stay off SSR).
+	function makeHighlightStyle(typstTags: {
+		mathDelimiter: Tag;
+		listMarker: Tag;
+		interpolated: Tag;
+	}): HighlightStyle {
+		return HighlightStyle.define([
+			{ tag: tags.comment, color: 'var(--fui-ink-muted)', fontStyle: 'italic' },
+			{ tag: tags.string, color: 'var(--fui-code-green)' },
+			{ tag: tags.escape, color: 'var(--fui-code-green)' },
+			{ tag: tags.number, color: 'var(--fui-code-blue)' },
+			{ tag: tags.keyword, color: 'var(--fui-accent-strong)', fontWeight: '600' },
+			{ tag: tags.operator, color: 'var(--fui-code-violet)' },
+			{ tag: tags.function(tags.variableName), color: 'var(--fui-code-violet)' },
+			{ tag: tags.heading, color: 'var(--fui-ink)', fontWeight: '700' },
+			{ tag: tags.strong, fontWeight: '700' },
+			{ tag: tags.emphasis, fontStyle: 'italic' },
+			{ tag: tags.link, color: 'var(--fui-code-warm)', textDecoration: 'underline' },
+			{ tag: tags.monospace, color: 'var(--fui-code-warm)' },
+			{ tag: tags.punctuation, color: 'var(--fui-ink-secondary)' },
+			{ tag: tags.paren, color: 'var(--fui-ink-secondary)' },
+			{ tag: tags.invalid, color: 'var(--fui-code-warm)' },
+			{ tag: typstTags.mathDelimiter, color: 'var(--fui-code-violet)' },
+			{ tag: typstTags.listMarker, color: 'var(--fui-code-warm)' },
+			{ tag: typstTags.interpolated, color: 'var(--fui-code-violet)' }
+		]);
+	}
 
 	const theme = EditorView.theme({
 		'&': {
@@ -334,10 +361,16 @@ Replace the entire file `web-admin/src/lib/editor/TypstEditor.svelte` with:
 		'.cm-placeholder': { color: 'var(--fui-ink-muted)' }
 	});
 
-	function buildExtensions(support: Extension, languageData: Extension): Extension[] {
+	function buildExtensions(
+		language: Extension,
+		languageData: Extension,
+		typstHighlighting: Extension,
+		highlightStyle: HighlightStyle
+	): Extension[] {
 		return [
-			support,
+			language,
 			languageData,
+			typstHighlighting,
 			syntaxHighlighting(highlightStyle),
 			closeBrackets(),
 			bracketMatching(),
@@ -372,18 +405,23 @@ Replace the entire file `web-admin/src/lib/editor/TypstEditor.svelte` with:
 		const mountPoint = host;
 		let cancelled = false;
 		void (async () => {
-			const { typst } = await import('codemirror-lang-typst');
+			const { typst, typstHighlighting, typstTags } = await import('codemirror-lang-typst');
 			if (cancelled) return;
-			const support = typst();
-			const languageData = support.language.data.of({
-				commentTokens: { line: '//', block: { open: '/*', close: '*/' } },
-				closeBrackets: { brackets: ['(', '[', '{', '"', '$', '`'] }
-			});
+			const language = typst().language;
+			// Our commentTokens must win over the grammar's block-only default so that
+			// Mod-/ line-comment toggle works; Prec.high makes ours resolve first.
+			const languageData = Prec.high(
+				language.data.of({
+					commentTokens: { line: '//', block: { open: '/*', close: '*/' } },
+					closeBrackets: { brackets: ['(', '[', '{', '"', '$', '`'] }
+				})
+			);
+			const highlightStyle = makeHighlightStyle(typstTags);
 			const initialDoc = untrack(() => value);
 			view = new EditorView({
 				state: EditorState.create({
 					doc: initialDoc,
-					extensions: buildExtensions(support, languageData)
+					extensions: buildExtensions(language, languageData, typstHighlighting, highlightStyle)
 				}),
 				parent: mountPoint
 			});
@@ -410,9 +448,10 @@ Replace the entire file `web-admin/src/lib/editor/TypstEditor.svelte` with:
 
 - [ ] **Step 3: Reconcile the HighlightStyle and grammar API against the installed package**
 
-Using the notes from Task 1 Step 4:
-- If `typst()` does **not** bundle its parser-sync `StateField`, import `TypstParser`/the update listener per the package's `dist/index.d.ts` and add it to `buildExtensions`. (If probase's bare-`typst()` pattern holds in 0.6.0, no change.)
-- Remove any `tags.*` entries above that don't exist on `@lezer/highlight` or that svelte-check flags, and add any grammar tag from the Step-4 list that is missing. Unmapped tags simply render as default text — acceptable.
+The code above already reflects the verified 0.6.0 integration (Task 1's Step 4 findings). Confirm against the installed package before trusting the checker:
+- Confirm `typstHighlighting` and `typstTags` are named exports of `codemirror-lang-typst` (grep `node_modules/codemirror-lang-typst/dist/index.js` for `export {`). They are in 0.6.0; if a version bump renamed them, adjust the import.
+- Confirm `--fui-ink-secondary` exists as a CSS token (grep the foundationui package / existing styles). If not, fall back to `--fui-ink-muted` for `punctuation`/`paren`.
+- `bun run check` (next step) surfaces any `tags.*` name that does not exist on `@lezer/highlight`; remove or correct it. The tags used above are all real 0.6.0-emitted tags, so none should fail — but do not add speculative tags that the highlighter never emits.
 
 - [ ] **Step 4: Type/lint check**
 
