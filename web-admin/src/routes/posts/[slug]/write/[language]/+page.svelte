@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { beforeNavigate } from '$app/navigation';
 	import { base } from '$app/paths';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Badge, Button, Callout, Input, Link, Prose, Spinner } from 'foundationui/svelte';
@@ -8,6 +9,7 @@
 	import TypstEditor from '$lib/editor/TypstEditor.svelte';
 	import { debounce } from '$lib/editor/debounce.js';
 	import { createPreviewController } from '$lib/editor/preview-controller.js';
+	import { isDirty, type EditorFields } from '$lib/editor/dirty.js';
 	import type { PreviewResult } from '$lib/api/types.js';
 	import type { ActionData, PageData } from './$types';
 
@@ -22,6 +24,27 @@
 	let source = $derived(data.translation.source);
 	let saving = $state(false);
 	let formEl: HTMLFormElement | undefined;
+
+	let baseline = $state<EditorFields>({
+		source: data.translation.source,
+		title: data.translation.title,
+		description: data.translation.description
+	});
+
+	// Re-baseline when navigating to a different post/language pair.
+	let baselinedPairKey: string | null = null;
+	$effect(() => {
+		const pairKey = `${post.slug}::${language}`;
+		if (pairKey === baselinedPairKey) return;
+		baselinedPairKey = pairKey;
+		baseline = {
+			source: data.translation.source,
+			title: data.translation.title,
+			description: data.translation.description
+		};
+	});
+
+	const dirty = $derived(!saving && isDirty(baseline, { source, title, description }));
 
 	let previewLoading = $state(false);
 	let previewResult = $state<PreviewResult | null>(null);
@@ -97,10 +120,27 @@
 			saving = false;
 			if (result.type === 'success' && result.data && typeof result.data.revision === 'number') {
 				revision = result.data.revision;
+				baseline = { source, title, description };
 			}
 			await update({ invalidateAll: false });
 		};
 	};
+
+	beforeNavigate((navigation) => {
+		if (!dirty) return;
+		const leave = confirm('You have unsaved changes. Leave without saving?');
+		if (!leave) navigation.cancel();
+	});
+
+	$effect(() => {
+		const handler = (event: BeforeUnloadEvent) => {
+			if (!dirty) return;
+			event.preventDefault();
+			event.returnValue = '';
+		};
+		window.addEventListener('beforeunload', handler);
+		return () => window.removeEventListener('beforeunload', handler);
+	});
 
 	function handleKeydown(event: KeyboardEvent): void {
 		if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return;
