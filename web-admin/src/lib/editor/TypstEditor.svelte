@@ -28,6 +28,7 @@
 	import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 	import { tags } from '@lezer/highlight';
 	import type { Tag } from '@lezer/highlight';
+	import { expandBracketOnEnter, typstIndentService } from './smart-indent.js';
 
 	let { value = $bindable(''), placeholder = '' }: { value?: string; placeholder?: string } =
 		$props();
@@ -139,11 +140,13 @@
 			search({ top: true }),
 			highlightSelectionMatches(),
 			indentOnInput(),
+			typstIndentService,
 			indentUnit.of('  '),
 			drawSelection(),
 			history(),
 			keymap.of([
 				...closeBracketsKeymap,
+				{ key: 'Enter', run: expandBracketOnEnter },
 				...defaultKeymap,
 				...searchKeymap,
 				...historyKeymap,
