@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { beforeNavigate } from '$app/navigation';
 	import { base } from '$app/paths';
@@ -25,11 +26,13 @@
 	let saving = $state(false);
 	let formEl: HTMLFormElement | undefined;
 
-	let baseline = $state<EditorFields>({
-		source: data.translation.source,
-		title: data.translation.title,
-		description: data.translation.description
-	});
+	let baseline = $state<EditorFields>(
+		untrack(() => ({
+			source: data.translation.source,
+			title: data.translation.title,
+			description: data.translation.description
+		}))
+	);
 
 	// Re-baseline when navigating to a different post/language pair.
 	let baselinedPairKey: string | null = null;
@@ -116,11 +119,12 @@
 
 	const saveSubmit: SubmitFunction = () => {
 		saving = true;
+		const submitted = { source, title, description };
 		return async ({ result, update }) => {
 			saving = false;
 			if (result.type === 'success' && result.data && typeof result.data.revision === 'number') {
 				revision = result.data.revision;
-				baseline = { source, title, description };
+				baseline = submitted;
 			}
 			await update({ invalidateAll: false });
 		};

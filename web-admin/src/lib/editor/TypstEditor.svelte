@@ -169,6 +169,9 @@
 		void (async () => {
 			const { typst, typstHighlighting, typstTags } = await import('codemirror-lang-typst');
 			if (cancelled) return;
+			// Intentionally take ONLY the language: we supply our own highlighting + indentation,
+			// deliberately not reusing the package's bundled highlight style or its
+			// typstLezerIndentService/typstLezerListKeymap (those belong to the unused native-lezer path).
 			const language = typst().language;
 			// Our commentTokens must win over the grammar's block-only default so that
 			// Mod-/ line-comment toggle works; Prec.high makes ours resolve first.
