@@ -11,7 +11,7 @@ use snowblog_core::domain::{Language, PostStatus, Revision, Slug};
 use snowblog_core::store::{ContentCounts, NewPost, PostPatch, Store, StoreError};
 use snowblog_core::telemetry::{
     RenderOperation, RenderOutcome, SqliteContention, StoreOperation, StoreResult,
-    record_render_attempt, record_render_duration, record_store,
+    initialize_event_counters, record_render_attempt, record_render_duration, record_store,
 };
 use sqlx::error::{DatabaseError, ErrorKind};
 use sqlx::sqlite::SqliteConnectOptions;
@@ -207,6 +207,68 @@ fn telemetry_uses_only_bounded_labels_and_structured_sqlite_codes() {
     }
 
     assert_eq!(StoreError::NotFound.metric_result(), StoreResult::Error);
+}
+
+// Break caught: an alert-facing counter series born on its first event, which
+// increase() cannot see, silencing the first failure burst after a restart.
+#[test]
+fn initialization_registers_every_alert_counter_series_at_zero() {
+    let recorder = PrometheusBuilder::new()
+        .set_buckets(&[1.0])
+        .expect("test buckets are non-empty")
+        .build_recorder();
+    let handle = recorder.handle();
+
+    with_local_recorder(&recorder, initialize_event_counters);
+
+    let exposition = handle.render();
+    assert_eq!(
+        label_values(&exposition, "snowblog_render_attempts_total", "operation"),
+        set(&["preview", "persisted", "rerender"])
+    );
+    assert_eq!(
+        label_values(&exposition, "snowblog_render_attempts_total", "outcome"),
+        set(&["success", "failure", "discarded"])
+    );
+    assert_eq!(
+        label_values(&exposition, "snowblog_sqlite_contention_total", "operation"),
+        set(&[
+            "create_post",
+            "delete_asset",
+            "delete_post",
+            "delete_translation",
+            "get_asset",
+            "get_assets",
+            "get_post",
+            "list_posts",
+            "replace_render",
+            "save_asset",
+            "save_translation",
+            "set_status",
+            "update_post_meta",
+        ])
+    );
+    assert_eq!(
+        label_values(&exposition, "snowblog_sqlite_contention_total", "kind"),
+        set(&["busy", "locked"])
+    );
+    for (family, expected_series) in [
+        ("snowblog_render_attempts_total", 9),
+        ("snowblog_sqlite_contention_total", 26),
+    ] {
+        let samples = exposition
+            .lines()
+            .filter(|line| line.starts_with(&format!("{family}{{")))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            samples.len(),
+            expected_series,
+            "wrong {family} series count"
+        );
+        for sample in samples {
+            assert!(sample.ends_with(" 0"), "series not at zero: {sample}");
+        }
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]

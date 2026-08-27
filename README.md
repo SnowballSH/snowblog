@@ -68,6 +68,13 @@ operations are `preview`, `persisted`, or `rerender`; attempt outcomes are
 content values, identifiers, credentials, database statements, or error and
 diagnostic text.
 
+The listener also serves the conventional `process_*` families (CPU time,
+resident and virtual memory, file descriptors, start time), refreshed every
+five seconds while serving. `snowblog_render_attempts_total` and
+`snowblog_sqlite_contention_total` are registered at zero for every label
+combination when the recorder installs, so rate queries see the first events
+after a restart.
+
 The metrics listener has no authentication or transport security of its own.
 Bind it to a private interface, or publish it only on host loopback or a
 private network protected by an appropriate access-control boundary. Do not

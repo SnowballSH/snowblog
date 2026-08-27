@@ -21,6 +21,22 @@ pub enum StoreOperation {
 }
 
 impl StoreOperation {
+    pub const ALL: [Self; 13] = [
+        Self::GetPost,
+        Self::ListPosts,
+        Self::CreatePost,
+        Self::UpdatePostMeta,
+        Self::SetStatus,
+        Self::DeletePost,
+        Self::SaveTranslation,
+        Self::DeleteTranslation,
+        Self::SaveAsset,
+        Self::DeleteAsset,
+        Self::GetAsset,
+        Self::GetAssets,
+        Self::ReplaceRender,
+    ];
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::GetPost => "get_post",
@@ -64,6 +80,8 @@ pub enum SqliteContention {
 }
 
 impl SqliteContention {
+    pub const ALL: [Self; 2] = [Self::Busy, Self::Locked];
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Busy => "busy",
@@ -89,6 +107,8 @@ pub enum RenderOperation {
 }
 
 impl RenderOperation {
+    pub const ALL: [Self; 3] = [Self::Preview, Self::Persisted, Self::Rerender];
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Preview => "preview",
@@ -107,6 +127,8 @@ pub enum RenderOutcome {
 }
 
 impl RenderOutcome {
+    pub const ALL: [Self; 3] = [Self::Success, Self::Failure, Self::Discarded];
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Success => "success",
@@ -119,6 +141,37 @@ impl RenderOutcome {
         match self {
             Self::Success | Self::Discarded => "success",
             Self::Failure => "failure",
+        }
+    }
+}
+
+pub fn initialize_event_counters() {
+    metrics::describe_counter!(
+        "snowblog_render_attempts_total",
+        "Render attempts by operation and outcome."
+    );
+    metrics::describe_counter!(
+        "snowblog_sqlite_contention_total",
+        "SQLite busy and locked events by store operation."
+    );
+    for operation in RenderOperation::ALL {
+        for outcome in RenderOutcome::ALL {
+            metrics::counter!(
+                "snowblog_render_attempts_total",
+                "operation" => operation.as_str(),
+                "outcome" => outcome.as_str(),
+            )
+            .increment(0);
+        }
+    }
+    for operation in StoreOperation::ALL {
+        for kind in SqliteContention::ALL {
+            metrics::counter!(
+                "snowblog_sqlite_contention_total",
+                "operation" => operation.as_str(),
+                "kind" => kind.as_str(),
+            )
+            .increment(0);
         }
     }
 }

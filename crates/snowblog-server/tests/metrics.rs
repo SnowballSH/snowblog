@@ -23,6 +23,19 @@ use tower::ServiceExt;
 #[tokio::test(flavor = "current_thread")]
 async fn http_metrics_use_normalized_routes_and_bounded_labels() {
     let handle = install_prometheus_recorder().expect("the test installs one recorder");
+    for (family, series_label) in [
+        ("snowblog_render_attempts_total", "outcome=\"failure\""),
+        ("snowblog_sqlite_contention_total", "kind=\"busy\""),
+    ] {
+        assert!(
+            handle.render().lines().any(|line| {
+                line.starts_with(&format!("{family}{{"))
+                    && line.contains(series_label)
+                    && line.ends_with(" 0")
+            }),
+            "recorder install did not pre-register {family} with {series_label}"
+        );
+    }
     let app = app_with_admin().await;
 
     assert_eq!(
