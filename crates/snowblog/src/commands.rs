@@ -45,6 +45,7 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     let metrics_listener = metrics_listener.expect("configured metrics listener is bound");
     snowblog_server::telemetry::initialize_build_info(application.service()).await?;
     snowblog_server::telemetry::refresh_content_metrics(application.service()).await?;
+    let process_collector = snowblog_server::telemetry::process_metrics_collector();
 
     let service = application.service().clone();
     let upkeep_handle = metrics_handle.clone();
@@ -71,10 +72,14 @@ pub async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         () = run_periodic(METRICS_UPKEEP_PERIOD, move || upkeep_handle.run_upkeep()) => {
             anyhow::bail!("metrics upkeep terminated unexpectedly");
         }
+        () = run_periodic(PROCESS_METRICS_PERIOD, move || process_collector.collect()) => {
+            anyhow::bail!("process metrics collection terminated unexpectedly");
+        }
     }
 }
 
 const METRICS_UPKEEP_PERIOD: Duration = Duration::from_secs(5);
+const PROCESS_METRICS_PERIOD: Duration = Duration::from_secs(5);
 
 async fn run_periodic(period: Duration, mut run: impl FnMut()) {
     let mut interval = tokio::time::interval(period);

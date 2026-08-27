@@ -14,6 +14,7 @@ http-body-util.workspace = true
 jiff.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
+metrics-process.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 snowblog-core.workspace = true

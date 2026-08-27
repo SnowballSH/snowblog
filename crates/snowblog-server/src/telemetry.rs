@@ -36,7 +36,16 @@ fn prometheus_builder() -> Result<PrometheusBuilder, BuildError> {
 }
 
 pub fn install_prometheus_recorder() -> anyhow::Result<PrometheusHandle> {
-    Ok(prometheus_builder()?.install_recorder()?)
+    let handle = prometheus_builder()?.install_recorder()?;
+    snowblog_core::telemetry::initialize_event_counters();
+    Ok(handle)
+}
+
+pub fn process_metrics_collector() -> metrics_process::Collector {
+    let collector = metrics_process::Collector::default();
+    collector.describe();
+    collector.collect();
+    collector
 }
 
 pub fn metrics_router(handle: PrometheusHandle) -> Router {
@@ -241,6 +250,34 @@ mod tests {
             exposition.contains("snowblog_http_request_duration_seconds_count 3"),
             "histogram count lost across upkeep:\n{exposition}"
         );
+    }
+
+    // Break caught: the process collector stops exporting the families the
+    // fleet restart alerts and the process memory dashboard panels read.
+    #[test]
+    fn process_collector_exports_the_fleet_process_families() {
+        let recorder = prometheus_builder()
+            .expect("bucket configuration is valid")
+            .build_recorder();
+        let handle = recorder.handle();
+
+        with_local_recorder(&recorder, || {
+            super::process_metrics_collector().collect();
+        });
+
+        let exposition = handle.render();
+        for family in [
+            "process_cpu_seconds_total",
+            "process_resident_memory_bytes",
+            "process_start_time_seconds",
+        ] {
+            assert!(
+                exposition
+                    .lines()
+                    .any(|line| line.starts_with(&format!("{family} "))),
+                "missing {family} in:\n{exposition}"
+            );
+        }
     }
 
     fn assert_boundaries(exposition: &str, family: &str, expected: &[&str]) {
