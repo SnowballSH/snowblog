@@ -22,10 +22,18 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        versions: [">=25"]
   - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: library/node
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
