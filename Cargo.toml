@@ -16,7 +16,7 @@ axum = "0.8"
 blake3 = "1"
 bytes = "1"
 clap = { version = "4", features = ["derive", "env"] }
-constant_time_eq = "0.5"
+constant_time_eq = "0.6"
 http-body-util = "0.1"
 jiff = { version = "0.2", features = ["serde"] }
 metrics = "0.24.6"
