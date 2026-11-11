@@ -30,9 +30,6 @@ export default defineConfig({
 			? { '/api/v1': { target: process.env.SNOWBLOG_API_URL, changeOrigin: true } }
 			: undefined
 	},
-	ssr: {
-		noExternal: ['ulid']
-	},
 	test: {
 		expect: { requireAssertions: true },
 		environment: 'node',
