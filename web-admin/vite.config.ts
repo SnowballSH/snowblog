@@ -13,7 +13,7 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: adapter(),
-			paths: { base: '/blogs' }
+			paths: { base: '/blogs', relative: false }
 		}),
 		wasm()
 	],

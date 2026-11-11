@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import { Badge, Button, Input, Link, Panel, Select } from 'foundationui/svelte';
-	import OutcomeBanner from '$lib/components/OutcomeBanner.svelte';
+	import OutcomeBanner from '#lib/components/OutcomeBanner.svelte';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -46,7 +46,7 @@
 		{#each data.posts as post (post.id)}
 			<Panel class="flex flex-col gap-2">
 				<div class="flex flex-wrap items-center justify-between gap-2">
-					<Link href={`${base}/posts/${post.slug}`}>{post.slug}</Link>
+					<Link href={resolve(`posts/${post.slug}`)}>{post.slug}</Link>
 					<Badge tone={post.status === 'published' ? 'aurora' : 'neutral'}>{post.status}</Badge>
 				</div>
 				<div class="flex flex-wrap gap-3 text-sm text-ink-muted">

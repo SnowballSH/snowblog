@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import {
 		Badge,
 		Button,
@@ -13,9 +13,9 @@
 		Select,
 		Spinner
 	} from 'foundationui/svelte';
-	import OutcomeBanner from '$lib/components/OutcomeBanner.svelte';
-	import ConflictNotice from '$lib/components/ConflictNotice.svelte';
-	import type { PreviewResult } from '$lib/api/types.js';
+	import OutcomeBanner from '#lib/components/OutcomeBanner.svelte';
+	import ConflictNotice from '#lib/components/ConflictNotice.svelte';
+	import type { PreviewResult } from '#lib/api/types.js';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -42,7 +42,7 @@
 
 		previewState[language] = { loading: true, result: null, error: null };
 		try {
-			const response = await fetch(`${base}/posts/${post.slug}/preview`, {
+			const response = await fetch(resolve(`posts/${post.slug}/preview`), {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ source: textarea.value })
@@ -103,7 +103,7 @@
 			<Badge tone={post.status === 'published' ? 'aurora' : 'neutral'}>{post.status}</Badge>
 			<span class="text-sm text-ink-muted">revision {post.revision}</span>
 		</div>
-		<Link href={base || '/'}>Back to posts</Link>
+		<Link href={resolve('/')}>Back to posts</Link>
 	</div>
 
 	<OutcomeBanner result={form} />
@@ -186,7 +186,7 @@
 						<Badge tone={freshnessTone(freshnessFor(translation.language))}>
 							{freshnessFor(translation.language)}
 						</Badge>
-						<Link href={`${base}/posts/${post.slug}/write/${translation.language}`}>Write</Link>
+						<Link href={resolve(`posts/${post.slug}/write/${translation.language}`)}>Write</Link>
 					</div>
 				</div>
 				<form method="POST" action="?/saveTranslation" use:enhance class="flex flex-col gap-3">

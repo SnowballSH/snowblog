@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Badge, Divider, Link, Prose } from 'foundationui/svelte';
-	import { formatDate } from '$lib/format.js';
-	import { languageLabel } from '$lib/language.js';
+	import { formatDate } from '#lib/format.js';
+	import { languageLabel } from '#lib/language.js';
 
 	let { data } = $props();
 

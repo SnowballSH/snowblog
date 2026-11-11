@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { load } from './+page.server.js';
-import { PAGE_SIZE, type PostListPage } from '$lib/api/types.js';
+import { PAGE_SIZE, type PostListPage } from '#lib/api/types.js';
 
 function summaries(count: number) {
 	return Array.from({ length: count }, (_, i) => ({

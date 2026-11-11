@@ -1,7 +1,7 @@
-import { AdminApi, ApiError } from '$lib/server/client.js';
-import { getConfig } from '$lib/server/config.js';
-import { recordAudit } from '$lib/server/audit.js';
-import type { Problem } from '$lib/api/types.js';
+import { AdminApi, ApiError } from '#lib/server/client.js';
+import { getConfig } from '#lib/server/config.js';
+import { recordAudit } from '#lib/server/audit.js';
+import type { Problem } from '#lib/api/types.js';
 import type { RequestHandler } from './$types';
 
 function problemMessage(problem: Problem): string {

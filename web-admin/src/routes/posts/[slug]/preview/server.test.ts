@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PreviewResult } from '$lib/api/types.js';
+import type { PreviewResult } from '#lib/api/types.js';
 
 const { preview } = vi.hoisted(() => ({
 	preview: vi.fn()
 }));
 
-vi.mock('$lib/server/client.js', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/client.js')>();
+vi.mock('#lib/server/client.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/client.js')>();
 	class FakeAdminApi {
 		preview = preview;
 	}
@@ -16,7 +16,7 @@ vi.mock('$lib/server/client.js', async (importOriginal) => {
 	};
 });
 
-vi.mock('$lib/server/config.js', () => ({
+vi.mock('#lib/server/config.js', () => ({
 	getConfig: () => ({
 		apiUrl: 'http://api.test',
 		adminToken: 'tok',
@@ -28,9 +28,9 @@ vi.mock('$lib/server/config.js', () => ({
 }));
 
 const recordAudit = vi.hoisted(() => vi.fn(() => 'audit-1'));
-vi.mock('$lib/server/audit.js', () => ({ recordAudit }));
+vi.mock('#lib/server/audit.js', () => ({ recordAudit }));
 
-const { ApiError } = await import('$lib/server/client.js');
+const { ApiError } = await import('#lib/server/client.js');
 const { POST } = await import('./+server.js');
 
 function jsonRequest(body: unknown): Request {

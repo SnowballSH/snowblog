@@ -1,8 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { base } from '$app/paths';
-import { AdminApi, ApiError } from '$lib/server/client.js';
-import { getConfig } from '$lib/server/config.js';
-import { recordAudit } from '$lib/server/audit.js';
+import { resolve } from '$app/paths';
+import { AdminApi, ApiError } from '#lib/server/client.js';
+import { getConfig } from '#lib/server/config.js';
+import { recordAudit } from '#lib/server/audit.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ fetch }) => {
@@ -54,6 +54,6 @@ export const actions: Actions = {
 			status: 201
 		});
 
-		redirect(303, `${base}/posts/${created.slug}`);
+		redirect(303, resolve(`posts/${created.slug}`));
 	}
 };

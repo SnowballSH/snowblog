@@ -1,6 +1,6 @@
-import { fetchPostList } from '$lib/api/client.js';
-import { postAlternates } from '$lib/head.js';
-import type { PostSummary } from '$lib/api/types.js';
+import { fetchPostList } from '#lib/api/client.js';
+import { postAlternates } from '#lib/head.js';
+import type { PostSummary } from '#lib/api/types.js';
 import type { RequestHandler } from './$types';
 
 function escapeXml(value: string): string {
