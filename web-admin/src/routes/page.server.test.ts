@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
-import type { AdminPost } from '$lib/api/types.js';
+import type { AdminPost } from '#lib/api/types.js';
 
 interface CreateOutcome {
 	ok: boolean;
@@ -14,8 +14,8 @@ const { listPosts, createPost } = vi.hoisted(() => ({
 	createPost: vi.fn()
 }));
 
-vi.mock('$lib/server/client.js', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/client.js')>();
+vi.mock('#lib/server/client.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/client.js')>();
 	class FakeAdminApi {
 		listPosts = listPosts;
 		createPost = createPost;
@@ -26,7 +26,7 @@ vi.mock('$lib/server/client.js', async (importOriginal) => {
 	};
 });
 
-vi.mock('$lib/server/config.js', () => ({
+vi.mock('#lib/server/config.js', () => ({
 	getConfig: () => ({
 		apiUrl: 'http://api.test',
 		adminToken: 'tok',
@@ -38,9 +38,9 @@ vi.mock('$lib/server/config.js', () => ({
 }));
 
 const recordAudit = vi.hoisted(() => vi.fn(() => 'audit-1'));
-vi.mock('$lib/server/audit.js', () => ({ recordAudit }));
+vi.mock('#lib/server/audit.js', () => ({ recordAudit }));
 
-const { ApiError } = await import('$lib/server/client.js');
+const { ApiError } = await import('#lib/server/client.js');
 const { load, actions } = await import('./+page.server.js');
 
 function post(overrides: Partial<Record<string, unknown>> = {}) {

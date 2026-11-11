@@ -13,7 +13,7 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: adapter(),
-			paths: { base: '/blogs' }
+			paths: { base: '/blogs', relative: false }
 		}),
 		wasm()
 	],
@@ -29,9 +29,6 @@ export default defineConfig({
 		proxy: process.env.SNOWBLOG_API_URL
 			? { '/api/v1': { target: process.env.SNOWBLOG_API_URL, changeOrigin: true } }
 			: undefined
-	},
-	ssr: {
-		noExternal: ['ulid']
 	},
 	test: {
 		expect: { requireAssertions: true },

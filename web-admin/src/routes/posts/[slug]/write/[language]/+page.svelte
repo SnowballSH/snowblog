@@ -1,17 +1,16 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { beforeNavigate } from '$app/navigation';
-	import { base } from '$app/paths';
-	import type { SubmitFunction } from '@sveltejs/kit';
+	import { resolve } from '$app/paths';
 	import { Badge, Button, Callout, Input, Link, Prose, Spinner } from 'foundationui/svelte';
-	import OutcomeBanner from '$lib/components/OutcomeBanner.svelte';
-	import ConflictNotice from '$lib/components/ConflictNotice.svelte';
-	import TypstEditor from '$lib/editor/TypstEditor.svelte';
-	import { debounce } from '$lib/editor/debounce.js';
-	import { createPreviewController } from '$lib/editor/preview-controller.js';
-	import { isDirty, type EditorFields } from '$lib/editor/dirty.js';
-	import type { PreviewResult } from '$lib/api/types.js';
+	import OutcomeBanner from '#lib/components/OutcomeBanner.svelte';
+	import ConflictNotice from '#lib/components/ConflictNotice.svelte';
+	import TypstEditor from '#lib/editor/TypstEditor.svelte';
+	import { debounce } from '#lib/editor/debounce.js';
+	import { createPreviewController } from '#lib/editor/preview-controller.js';
+	import { isDirty, type EditorFields } from '#lib/editor/dirty.js';
+	import type { PreviewResult } from '#lib/api/types.js';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -58,7 +57,7 @@
 	async function runPreviewFetch(text: string, signal: AbortSignal): Promise<PreviewOutcome> {
 		previewLoading = true;
 		try {
-			const response = await fetch(`${base}/posts/${post.slug}/preview`, {
+			const response = await fetch(resolve(`posts/${post.slug}/preview`), {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ source: text }),
@@ -171,8 +170,9 @@
 
 	<div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2">
 		<div class="flex items-center gap-3">
-			<Link href={`${base}/posts/${post.slug}`}>Back</Link>
+			<Link href={resolve(`posts/${post.slug}`)}>Back</Link>
 			<span class="font-display text-sm font-semibold text-ink">{post.slug}</span>
+
 			<Badge tone="neutral">{language}</Badge>
 			<span class="text-xs text-ink-muted">revision {revision}</span>
 		</div>

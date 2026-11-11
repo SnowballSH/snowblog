@@ -1,6 +1,6 @@
-import type { Handle, ServerInit } from '@sveltejs/kit';
-import { building } from '$app/environment';
-import { observeRequest, startMetricsServer } from '$lib/server/metrics.js';
+import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
+import { building } from '$app/env';
+import { observeRequest, startMetricsServer } from '#lib/server/metrics.js';
 
 export const init: ServerInit = () => {
 	const listen = process.env.SNOWBLOG_WEB_METRICS_LISTEN;

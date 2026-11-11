@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GET as robots } from './robots.txt/+server.js';
 import { GET as sitemap } from './sitemap.xml/+server.js';
-import { PAGE_SIZE } from '$lib/api/types.js';
+import { PAGE_SIZE } from '#lib/api/types.js';
 
 function summary(n: number, languages: string[] = ['en']) {
 	return {

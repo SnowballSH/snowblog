@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { load } from './[slug]/+page.server.js';
-import type { PostDetail } from '$lib/api/types.js';
+import type { PostDetail } from '#lib/api/types.js';
 
 const detail: PostDetail = {
 	id: 'id-1',

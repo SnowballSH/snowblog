@@ -97,5 +97,9 @@ SNOWBLOG_API_URL=http://127.0.0.1:8080 bun run dev
 ```
 
 `bun run build` produces an adapter-node server (`node build`);
-`Containerfile.web` packages it. See `web/README.md` for configuration and
+`Containerfile.web` packages it together with the production
+`node_modules`. `dependencies` in `web/package.json` and
+`web-admin/package.json` lists only what the built server loads from
+`node_modules` at runtime; everything the build bundles is a
+`devDependency`. See `web/README.md` for configuration and
 the single-origin deployment contract.

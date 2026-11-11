@@ -50,9 +50,12 @@ Other useful scripts: `bun run build`, `bun run check`, `bun run lint`,
 
 ## Base path
 
-The app is mounted under `/blogs` (`kit.paths.base` in `vite.config.ts`), so
-every route, redirect, form action, and built asset URL lives under
-`/blogs/...` and the health check is served at `/blogs/healthz`. A request
+The app is mounted under `/blogs` (`paths.base` in the `sveltekit()` options
+in `vite.config.ts`), so every route, redirect, form action, and built asset
+URL lives under `/blogs/...` and the health check is served at
+`/blogs/healthz`. `paths.relative` is `false`, so `resolve()` from
+`$app/paths` always returns the full `/blogs/...` path, on the server as in
+the browser, rather than one relative to the request being handled. A request
 outside that prefix is not routed at all. The root path is deliberately left
 free for a future top-level admin dashboard to live at the domain root.
 

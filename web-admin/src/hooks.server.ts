@@ -1,10 +1,12 @@
-import type { Handle, ServerInit } from '@sveltejs/kit';
+import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { readFileSync } from 'node:fs';
-import { building } from '$app/environment';
-import { base } from '$app/paths';
-import { getConfig, initConfig, loadConfig } from '$lib/server/config.js';
-import { crossSiteViolation, identityFrom } from '$lib/server/guard.js';
-import { observeRequest, startMetricsServer } from '$lib/server/metrics.js';
+import { building } from '$app/env';
+import { resolve as resolvePath } from '$app/paths';
+import { getConfig, initConfig, loadConfig } from '#lib/server/config.js';
+import { crossSiteViolation, identityFrom } from '#lib/server/guard.js';
+import { observeRequest, startMetricsServer } from '#lib/server/metrics.js';
+
+const HEALTH_PATH = `${resolvePath('/')}healthz`;
 
 export const init: ServerInit = () => {
 	if (building) return;
@@ -16,7 +18,7 @@ export const init: ServerInit = () => {
 export const handle: Handle = async ({ event, resolve }) => {
 	const started = performance.now();
 	let response: Response;
-	if (event.url.pathname === `${base}/healthz`) {
+	if (event.url.pathname === HEALTH_PATH) {
 		response = Response.json({ status: 'ok' });
 	} else {
 		const config = getConfig();

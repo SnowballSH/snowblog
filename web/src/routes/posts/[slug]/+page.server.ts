@@ -1,6 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
-import { ApiError, fetchPost } from '$lib/api/client.js';
-import { postAlternates } from '$lib/head.js';
+import { ApiError, fetchPost } from '#lib/api/client.js';
+import { postAlternates } from '#lib/head.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, url, fetch }) => {

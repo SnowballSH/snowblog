@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { Badge, Link, Panel } from 'foundationui/svelte';
-	import { formatDate } from '$lib/format.js';
+	import { formatDate } from '#lib/format.js';
 
 	let { data } = $props();
 
