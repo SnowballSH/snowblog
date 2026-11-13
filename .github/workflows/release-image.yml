@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   image:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       IMAGE: ghcr.io/snowballsh/snowblog
     steps:
@@ -95,7 +95,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
   web-image:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       IMAGE: ghcr.io/snowballsh/snowblog-web
     steps:
@@ -152,7 +152,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
   image-admin:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       IMAGE: ghcr.io/snowballsh/snowblog-admin
     steps:
